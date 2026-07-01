@@ -16,7 +16,8 @@ App de escritorio nativa (Rust + egui/eframe) para comprimir **videos e imágene
 | `ffmpeg.rs` | Localización e invocación de FFmpeg/FFprobe: `resolve_tool`, `which_in_path`, `null_device`, `probe_duration`, y el struct `Worker` con `run_pass` (con progreso, para video) y `run_quiet` (sin progreso, para imágenes). |
 | `queue.rs` | Cola en el hilo de trabajo: `run_queue` enruta por `MediaKind` a `compress_video` (two-pass H.264) o `compress_image` (búsqueda binaria de calidad JPEG). `QueuedJob`, constantes de bitrate, `cleanup_passlog`. |
 | `update.rs` | Auto-actualización desde GitHub Releases: `check_latest`, `self_update`, `is_newer`, enum `UpdateStatus`. Tiene tests unitarios de comparación de versiones. |
-| `app.rs` | GUI egui: struct `App` (estado) + `impl eframe::App` (renderizado y polling). |
+| `install.rs` | Integración con el SO: `ensure_start_menu_shortcut` crea el acceso directo del menú Inicio en Windows (vía PowerShell/WScript.Shell) para que la app sea buscable. No-op fuera de Windows. |
+| `app.rs` | GUI egui: struct `App` (estado) + `impl eframe::App` (renderizado y polling). Acciones masivas de la cola (quitar terminados/todos). |
 
 La documentación para el **usuario final** vive en `docs/` (p. ej. `docs/GUIA-DE-USUARIO.md`); cualquier guía o material para los compañeros va ahí, no en el README (que es más para instalación/desarrollo).
 

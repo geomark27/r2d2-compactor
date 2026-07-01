@@ -8,6 +8,7 @@
 
 mod app;
 mod ffmpeg;
+mod install;
 mod model;
 mod queue;
 mod update;

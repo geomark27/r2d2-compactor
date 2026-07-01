@@ -21,6 +21,10 @@ Herramienta para **reducir el peso de videos e imágenes de evidencia** antes de
 
 > ⚠️ **Importante:** no separes el `r2d2-compactor.exe` de la carpeta `ffmpeg`. Deben quedar siempre juntos, tal como vienen en el `.zip`. Si mueves solo el `.exe` a otro lado, el programa no podrá comprimir.
 
+### Abrirlo después desde el buscador de Windows
+
+La **primera vez** que abres el programa, este se registra solo en el menú Inicio. A partir de ahí ya **no necesitas ir a buscar el `.exe`**: solo pulsa la tecla **Windows** (o clic en el buscador) y escribe **`r2d2`** — aparecerá "R2D2 Compactor" para abrirlo directo.
+
 > La primera vez, Windows puede mostrar un aviso de seguridad ("Windows protegió tu PC"). Es normal en programas nuevos: haz clic en **"Más información" → "Ejecutar de todas formas"**.
 
 ---
@@ -62,6 +66,14 @@ Dónde se guardan los archivos comprimidos.
 6. Al terminar, cada archivo muestra cuánto se redujo (por ejemplo, *"Listo · 78% más liviano"*) y aparece un enlace **"Ver archivo"** que abre la carpeta con el resultado.
 
 Puedes pulsar **"Cancelar"** en cualquier momento para detener el proceso.
+
+### Limpiar la lista
+
+Encima de la lista de archivos tienes dos botones para no borrar uno por uno:
+- **🧹 Quitar terminados** — quita de la lista los que ya se comprimieron (o fallaron), dejando los pendientes.
+- **🗑 Quitar todos** — vacía la lista completa (los que se estén comprimiendo en ese momento se conservan).
+
+Quitar un archivo de la lista **no borra nada de tu disco**; solo lo saca de la cola del programa.
 
 ---
 

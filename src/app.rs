@@ -37,6 +37,10 @@ impl App {
         let ffprobe = resolve_tool("ffprobe.exe", "ffprobe");
         let missing = !ffmpeg.exists() && which_in_path(&ffmpeg).is_none();
 
+        // Crea el acceso directo del menú Inicio (Windows) para poder buscar la
+        // app por su nombre. En segundo plano y best-effort: si falla, se ignora.
+        std::thread::spawn(crate::install::ensure_start_menu_shortcut);
+
         // Comprueba en segundo plano si hay una versión nueva, sin bloquear la UI.
         let update_status = Arc::new(Mutex::new(UpdateStatus::Checking));
         {
@@ -498,6 +502,35 @@ impl eframe::App for App {
 
                 ui.add_space(16.0);
 
+                // Barra de acciones masivas (evita borrar archivo por archivo).
+                let mut clear_done = false;
+                let mut clear_all = false;
+                if !self.jobs.is_empty() {
+                    ui.horizontal(|ui| {
+                        let has_done = self
+                            .jobs
+                            .iter()
+                            .any(|j| matches!(j.state, JobState::Done | JobState::Error));
+                        let removable =
+                            self.jobs.iter().any(|j| j.state != JobState::Processing);
+                        if ui
+                            .add_enabled(has_done, egui::Button::new("🧹 Quitar terminados"))
+                            .on_hover_text("Quita de la lista los que ya se comprimieron o fallaron")
+                            .clicked()
+                        {
+                            clear_done = true;
+                        }
+                        if ui
+                            .add_enabled(removable, egui::Button::new("🗑 Quitar todos"))
+                            .on_hover_text("Vacía la lista (los que se están comprimiendo se conservan)")
+                            .clicked()
+                        {
+                            clear_all = true;
+                        }
+                    });
+                    ui.add_space(8.0);
+                }
+
                 let mut to_remove: Option<u64> = None;
                 let mut to_open: Option<PathBuf> = None;
 
@@ -548,6 +581,14 @@ impl eframe::App for App {
                     ui.add_space(10.0);
                 }
 
+                if clear_done {
+                    self.jobs
+                        .retain(|j| !matches!(j.state, JobState::Done | JobState::Error));
+                }
+                if clear_all {
+                    // Conserva solo los que se están comprimiendo en este momento.
+                    self.jobs.retain(|j| j.state == JobState::Processing);
+                }
                 if let Some(id) = to_remove {
                     self.jobs.retain(|j| j.id != id);
                 }
