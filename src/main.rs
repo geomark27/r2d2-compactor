@@ -2,6 +2,10 @@
 //!
 //! Punto de entrada: configura la ventana nativa y arranca la app egui.
 
+// En release en Windows, oculta la ventana de consola detrás de la GUI.
+// En debug la deja para ver panics/salida durante el desarrollo.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod app;
 mod ffmpeg;
 mod model;

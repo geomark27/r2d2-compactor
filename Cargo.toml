@@ -20,6 +20,12 @@ indexmap = "=2.2.6"
 ahash = "=0.8.11"
 url = "=2.4.1"
 
+# eframe 0.24 declara winapi sin features, pero su app_icon.rs usa winuser/windef.
+# Al cross-compilar a Windows eso rompe; declararlas aquí las activa vía unificación
+# de features de Cargo (solo afecta al target Windows).
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["winuser", "windef"] }
+
 [profile.release]
 opt-level = 3
 lto = true

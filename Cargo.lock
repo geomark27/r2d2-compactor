@@ -1580,6 +1580,7 @@ dependencies = [
  "sha2",
  "ureq",
  "url",
+ "winapi",
 ]
 
 [[package]]
