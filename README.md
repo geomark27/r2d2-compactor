@@ -12,6 +12,8 @@ Cero JavaScript, cero webview, cero runtime que instalar. Es un binario nativo (
 
 > Importante: mantén el `.exe` y la carpeta `ffmpeg/` **juntos**, tal como vienen en el zip. Si los separas, la app no encontrará el motor de compresión.
 
+📖 **Guía de usuario completa (paso a paso, con solución de problemas):** [`docs/GUIA-DE-USUARIO.md`](docs/GUIA-DE-USUARIO.md)
+
 ### Actualizaciones automáticas
 
 Al abrir, la app comprueba sola si hay una versión más reciente. Si la hay, muestra un aviso con el botón **"Actualizar ahora"**: se descarga, verifica su integridad (SHA-256) y se reemplaza a sí misma. Solo hay que **cerrarla y volver a abrirla**. No hay que volver a descargar el zip ni tocar la carpeta `ffmpeg/`.

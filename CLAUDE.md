@@ -18,6 +18,8 @@ App de escritorio nativa (Rust + egui/eframe) para comprimir **videos e imágene
 | `update.rs` | Auto-actualización desde GitHub Releases: `check_latest`, `self_update`, `is_newer`, enum `UpdateStatus`. Tiene tests unitarios de comparación de versiones. |
 | `app.rs` | GUI egui: struct `App` (estado) + `impl eframe::App` (renderizado y polling). |
 
+La documentación para el **usuario final** vive en `docs/` (p. ej. `docs/GUIA-DE-USUARIO.md`); cualquier guía o material para los compañeros va ahí, no en el README (que es más para instalación/desarrollo).
+
 Dependencias entre módulos (sin ciclos): `app` → {`ffmpeg`, `queue`, `update`, `model`, `util`}; `queue` → {`ffmpeg`, `model`}; `ffmpeg` → {`model`, `util`}.
 
 ## Comandos
