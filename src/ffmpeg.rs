@@ -10,6 +10,17 @@ use std::sync::{Arc, Mutex};
 use crate::model::Msg;
 use crate::util::parse_out_time;
 
+/// Evita que Windows abra una ventana de consola por cada proceso de FFmpeg.
+/// En otras plataformas no hace nada.
+#[cfg(windows)]
+fn hide_console(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+#[cfg(not(windows))]
+fn hide_console(_cmd: &mut Command) {}
+
 /// Resuelve la ruta de una herramienta: primero la carpeta `ffmpeg/` junto al
 /// ejecutable, y como último recurso el nombre a secas (para buscarla en PATH).
 pub fn resolve_tool(name_win: &str, name_unix: &str) -> PathBuf {
@@ -51,16 +62,18 @@ pub fn null_device() -> &'static str {
 
 /// Obtiene la duración del video en segundos usando ffprobe.
 pub fn probe_duration(ffprobe: &Path, input: &Path) -> Result<f64, String> {
-    let out = Command::new(ffprobe)
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-        ])
-        .arg(input)
+    let mut cmd = Command::new(ffprobe);
+    cmd.args([
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+    ])
+    .arg(input);
+    hide_console(&mut cmd);
+    let out = cmd
         .output()
         .map_err(|e| format!("no se pudo ejecutar ffprobe: {e}"))?;
 
@@ -98,6 +111,7 @@ impl Worker {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .stdin(Stdio::null());
+        hide_console(&mut cmd);
 
         let mut child = cmd
             .spawn()
@@ -143,11 +157,13 @@ impl Worker {
         if self.cancel_flag.load(Ordering::SeqCst) {
             return Err("__canceled__".to_string());
         }
-        let status = Command::new(&self.ffmpeg)
-            .args(args)
+        let mut cmd = Command::new(&self.ffmpeg);
+        cmd.args(args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .stdin(Stdio::null())
+            .stdin(Stdio::null());
+        hide_console(&mut cmd);
+        let status = cmd
             .status()
             .map_err(|e| format!("no se pudo iniciar FFmpeg: {e}"))?;
         if self.cancel_flag.load(Ordering::SeqCst) {
