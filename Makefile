@@ -5,6 +5,8 @@
 BINARY      = r2d2-compactor
 CARGO       = cargo
 WIN_TARGET  = x86_64-pc-windows-gnu
+VENDOR      = vendor/ffmpeg-win
+FFMPEG_URL  = https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip
 BRANCH     := $(shell git branch --show-current 2>/dev/null || echo "main")
 VERSION    := $(shell grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 
@@ -27,6 +29,8 @@ help:
 	@echo "$(YELLOW)  🔨 Build & Run:$(NC)"
 	@echo "    build           Compila release nativo (Linux, para probar en dev)"
 	@echo "    build-windows   Cross-compila el .exe de Windows ($(WIN_TARGET))"
+	@echo "    vendor-ffmpeg   Descarga FFmpeg de Windows a vendor/ (una vez)"
+	@echo "    dist-windows    Arma el .zip de Windows (app + FFmpeg incluido)"
 	@echo "    run             Ejecuta la app en modo desarrollo"
 	@echo "    clean           Elimina artefactos de compilación"
 	@echo ""
@@ -60,6 +64,30 @@ build-windows:
 	@echo "$(YELLOW)Cross-compilando para Windows ($(WIN_TARGET))...$(NC)"
 	@$(CARGO) build --release --target $(WIN_TARGET)
 	@echo "$(GREEN)✓ target/$(WIN_TARGET)/release/$(BINARY).exe$(NC)"
+
+# Descarga los binarios de FFmpeg para Windows y los deja en vendor/ (una vez).
+.PHONY: vendor-ffmpeg
+vendor-ffmpeg:
+	@echo "$(YELLOW)Descargando FFmpeg para Windows (~110 MB)...$(NC)"
+	@mkdir -p $(VENDOR)
+	@curl -sL -o /tmp/ffmpeg-win.zip "$(FFMPEG_URL)"
+	@unzip -o -j /tmp/ffmpeg-win.zip "*/bin/ffmpeg.exe" "*/bin/ffprobe.exe" -d $(VENDOR) >/dev/null
+	@unzip -o -j /tmp/ffmpeg-win.zip "*/LICENSE*" -d $(VENDOR) >/dev/null || true
+	@rm -f /tmp/ffmpeg-win.zip
+	@echo "$(GREEN)✓ FFmpeg en $(VENDOR)$(NC)"
+
+# Arma el .zip de distribución de Windows: la app + la carpeta ffmpeg lista para usar.
+.PHONY: dist-windows
+dist-windows: build-windows
+	@if [ ! -f $(VENDOR)/ffmpeg.exe ]; then \
+		echo "$(RED)Falta FFmpeg. Corre primero: make vendor-ffmpeg$(NC)"; exit 1; fi
+	@rm -rf dist/pkg && mkdir -p dist/pkg/ffmpeg
+	@cp target/$(WIN_TARGET)/release/$(BINARY).exe dist/pkg/
+	@cp $(VENDOR)/ffmpeg.exe $(VENDOR)/ffprobe.exe dist/pkg/ffmpeg/
+	@cp $(VENDOR)/LICENSE dist/pkg/ffmpeg/FFMPEG-LICENSE.txt 2>/dev/null || true
+	@( cd dist/pkg && zip -qr ../$(BINARY)-windows-amd64.zip . )
+	@rm -rf dist/pkg
+	@echo "$(GREEN)✓ dist/$(BINARY)-windows-amd64.zip (app + FFmpeg incluido)$(NC)"
 
 .PHONY: run
 run:
@@ -98,6 +126,8 @@ version:
 # Uso interno: `make _release BUMP=patch|minor|major`
 .PHONY: _release
 _release: lint
+	@if [ ! -f $(VENDOR)/ffmpeg.exe ]; then \
+		echo "$(RED)Falta FFmpeg. Corre primero: make vendor-ffmpeg$(NC)"; exit 1; fi
 	@CURRENT="$(VERSION)"; \
 	MAJOR=$$(echo $$CURRENT | cut -d. -f1); \
 	MINOR=$$(echo $$CURRENT | cut -d. -f2); \
@@ -110,14 +140,13 @@ _release: lint
 	NEW="$$MAJOR.$$MINOR.$$PATCH"; TAG="v$$NEW"; \
 	echo "$(YELLOW)Release: v$$CURRENT → $$TAG$(NC)"; \
 	sed -i "0,/^version = \".*\"/s//version = \"$$NEW\"/" Cargo.toml; \
-	echo "$(YELLOW)[1/5]$(NC) Compilando binarios..."; \
+	echo "$(YELLOW)[1/5]$(NC) Compilando binarios + zip de Windows con FFmpeg..."; \
 	$(CARGO) build --release; \
-	$(CARGO) build --release --target $(WIN_TARGET); \
-	mkdir -p dist; \
+	$(MAKE) dist-windows; \
 	cp target/release/$(BINARY)                 dist/$(BINARY)-linux-amd64; \
 	cp target/$(WIN_TARGET)/release/$(BINARY).exe dist/$(BINARY)-windows-amd64.exe; \
 	echo "$(YELLOW)[2/5]$(NC) Generando checksums.txt..."; \
-	( cd dist && sha256sum $(BINARY)-linux-amd64 $(BINARY)-windows-amd64.exe > checksums.txt ); \
+	( cd dist && sha256sum $(BINARY)-linux-amd64 $(BINARY)-windows-amd64.exe $(BINARY)-windows-amd64.zip > checksums.txt ); \
 	echo "$(YELLOW)[3/5]$(NC) Commit + tag $$TAG..."; \
 	git add Cargo.toml Cargo.lock; \
 	git commit -m "release: $$TAG"; \
@@ -126,10 +155,12 @@ _release: lint
 	git push origin $(BRANCH) --tags; \
 	echo "$(YELLOW)[5/5]$(NC) Publicando en GitHub Releases..."; \
 	gh release create $$TAG \
-		dist/$(BINARY)-linux-amd64 \
+		dist/$(BINARY)-windows-amd64.zip \
 		dist/$(BINARY)-windows-amd64.exe \
+		dist/$(BINARY)-linux-amd64 \
 		dist/checksums.txt \
-		--title "$$TAG" --notes "Release $$TAG"; \
+		--title "$$TAG" \
+		--notes "Release $$TAG. Para Windows descarga el .zip (incluye FFmpeg). El .exe suelto es solo para la auto-actualización."; \
 	echo "$(GREEN)✓ Release $$TAG publicado$(NC)"
 
 .PHONY: release

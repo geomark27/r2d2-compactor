@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::ffmpeg::{probe_duration, resolve_tool, which_in_path, Worker};
-use crate::model::{Job, JobState, Msg};
-use crate::queue::run_queue;
+use crate::model::{Job, JobState, MediaKind, Msg};
+use crate::queue::{run_queue, QueuedJob};
 use crate::update::{self, UpdateStatus};
 use crate::util::{fmt_size, open_containing_folder};
 
@@ -123,7 +123,7 @@ impl App {
         )
     }
 
-    /// Añade un video a la cola, evitando duplicados y leyendo su metadata.
+    /// Añade un archivo (video o imagen) a la cola, evitando duplicados.
     fn add_file(&mut self, path: PathBuf) {
         if self.jobs.iter().any(|j| j.input == path) {
             return;
@@ -133,14 +133,20 @@ impl App {
         let name = path
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or("video")
+            .unwrap_or("archivo")
             .to_string();
+        let kind = MediaKind::from_path(&path);
         let orig_bytes = std::fs::metadata(&path).ok().map(|m| m.len());
-        let duration = probe_duration(&self.ffprobe, &path).ok();
+        // Solo los videos necesitan la duración (para calcular el bitrate).
+        let duration = match kind {
+            MediaKind::Video => probe_duration(&self.ffprobe, &path).ok(),
+            MediaKind::Image => None,
+        };
         self.jobs.push(Job {
             id,
             input: path,
             name,
+            kind,
             orig_bytes,
             duration,
             output: None,
@@ -166,11 +172,16 @@ impl App {
         }
         let target_mb: u32 = self.target_mb.trim().parse().unwrap_or(90).max(5);
         let max_height = self.max_height_value();
-        let pending: Vec<(u64, PathBuf, f64)> = self
+        let pending: Vec<QueuedJob> = self
             .jobs
             .iter()
             .filter(|j| j.state == JobState::Queued)
-            .map(|j| (j.id, j.input.clone(), j.duration.unwrap_or(0.0)))
+            .map(|j| QueuedJob {
+                id: j.id,
+                input: j.input.clone(),
+                kind: j.kind,
+                duration: j.duration.unwrap_or(0.0),
+            })
             .collect();
         if pending.is_empty() {
             return;
@@ -215,6 +226,7 @@ impl App {
                     }
                     Msg::Done {
                         id,
+                        output,
                         final_bytes,
                         warning,
                     } => {
@@ -231,18 +243,7 @@ impl App {
                                 (_, Some(w)) => w.clone(),
                                 _ => format!("Listo ({})", fmt_size(final_bytes)),
                             };
-                            let dir = self.out_dir.clone().unwrap_or_else(|| {
-                                j.input
-                                    .parent()
-                                    .map(|p| p.to_path_buf())
-                                    .unwrap_or_else(|| PathBuf::from("."))
-                            });
-                            let stem = j
-                                .input
-                                .file_stem()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("video");
-                            j.output = Some(dir.join(format!("{stem}_comp.mp4")));
+                            j.output = Some(output);
                         }
                     }
                     Msg::Error { id, message } => {
@@ -324,39 +325,66 @@ impl eframe::App for App {
                     ui.weak(format!("v{}", update::current_version()));
                 });
             });
-            ui.label("Reduce videos pesados a un tamaño objetivo conservando la calidad. FFmpeg embebido.");
+            ui.label(
+                "Reduce el peso de videos e imágenes de evidencia antes de subirlos. \
+                 Arrastra los archivos, define el tamaño objetivo y comprime.",
+            );
             if self.ffmpeg_missing {
                 ui.colored_label(
                     egui::Color32::from_rgb(248, 113, 113),
-                    "No se encontró ffmpeg. Coloca ffmpeg.exe/ffprobe.exe en la carpeta 'ffmpeg' junto al programa.",
+                    "No se encontró FFmpeg. Descomprime el .zip completo: la app y la carpeta \
+                     'ffmpeg' deben quedar juntas en el mismo lugar.",
                 );
             }
             self.show_update_banner(ui);
-            ui.add_space(8.0);
+            ui.separator();
 
-            ui.horizontal(|ui| {
+            ui.horizontal_top(|ui| {
+                // --- Tamaño objetivo ---
                 ui.vertical(|ui| {
-                    ui.label("Tamaño objetivo (MB)");
+                    ui.label("🎯 Tamaño objetivo (MB)")
+                        .on_hover_text("Peso máximo que tendrá cada archivo comprimido.");
                     ui.add(egui::TextEdit::singleline(&mut self.target_mb).desired_width(80.0));
+                    ui.small("Menor número = más liviano,\npero algo menos de calidad.");
                 });
-                ui.add_space(16.0);
+                ui.add_space(20.0);
+
+                // --- Resolución máxima ---
                 ui.vertical(|ui| {
-                    ui.label("Resolución máxima");
+                    ui.label("📐 Resolución máxima")
+                        .on_hover_text("Reduce las dimensiones para ahorrar peso. Nunca agranda.");
                     egui::ComboBox::from_id_source("max_height")
+                        .width(180.0)
                         .selected_text(match self.max_height_idx {
                             0 => "1080p (Full HD)",
                             1 => "720p (HD)",
-                            _ => "Original (no escalar)",
+                            _ => "Original (sin cambiar)",
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.max_height_idx, 0, "1080p (Full HD)");
-                            ui.selectable_value(&mut self.max_height_idx, 1, "720p (HD)");
-                            ui.selectable_value(&mut self.max_height_idx, 2, "Original (no escalar)");
+                            ui.selectable_value(
+                                &mut self.max_height_idx,
+                                0,
+                                "1080p (Full HD) · recomendado",
+                            );
+                            ui.selectable_value(
+                                &mut self.max_height_idx,
+                                1,
+                                "720p (HD) · más liviano",
+                            );
+                            ui.selectable_value(
+                                &mut self.max_height_idx,
+                                2,
+                                "Original (sin cambiar tamaño)",
+                            );
                         });
+                    ui.small("Si la fuente ya es menor,\nse deja como está.");
                 });
-                ui.add_space(16.0);
+                ui.add_space(20.0);
+
+                // --- Carpeta de salida ---
                 ui.vertical(|ui| {
-                    ui.label("Carpeta de salida");
+                    ui.label("📁 Carpeta de salida")
+                        .on_hover_text("Dónde se guardan los archivos comprimidos.");
                     ui.horizontal(|ui| {
                         let text = self
                             .out_dir
@@ -373,10 +401,15 @@ impl eframe::App for App {
                                 self.out_dir = Some(dir);
                             }
                         }
-                        if ui.button("↺").clicked() {
+                        if ui
+                            .button("↺")
+                            .on_hover_text("Volver a la carpeta del original")
+                            .clicked()
+                        {
                             self.out_dir = None;
                         }
                     });
+                    ui.small("El original no se modifica;\nse crea una copia con sufijo «_comp».");
                 });
             });
             ui.add_space(10.0);
@@ -438,11 +471,21 @@ impl eframe::App for App {
                     .inner_margin(egui::Margin::symmetric(20.0, 30.0));
                 frame.show(ui, |ui| {
                     ui.vertical_centered(|ui| {
-                        ui.label(egui::RichText::new("Arrastra los videos aquí").strong());
-                        ui.label("o usa el botón para elegirlos — MP4, MOV, AVI, MKV");
-                        if ui.button("Elegir videos…").clicked() {
+                        ui.label(
+                            egui::RichText::new("Arrastra aquí tus videos o imágenes").strong(),
+                        );
+                        ui.label("o usa el botón para elegirlos");
+                        ui.small("Videos: MP4, MOV, AVI, MKV, M4V, WMV  ·  Imágenes: JPG, PNG, WEBP, BMP, TIFF");
+                        ui.add_space(4.0);
+                        if ui.button("Elegir archivos…").clicked() {
                             if let Some(files) = rfd::FileDialog::new()
-                                .add_filter("Videos", &["mp4", "mov", "avi", "mkv", "m4v", "wmv"])
+                                .add_filter(
+                                    "Videos e imágenes",
+                                    &[
+                                        "mp4", "mov", "avi", "mkv", "m4v", "wmv", "jpg", "jpeg",
+                                        "png", "webp", "bmp", "tif", "tiff", "heic",
+                                    ],
+                                )
                                 .pick_files()
                             {
                                 for f in files {
@@ -465,7 +508,11 @@ impl eframe::App for App {
                         .inner_margin(egui::Margin::symmetric(14.0, 12.0));
                     frame.show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(&job.name).strong());
+                            let icon = match job.kind {
+                                MediaKind::Video => "🎬",
+                                MediaKind::Image => "🖼",
+                            };
+                            ui.label(egui::RichText::new(format!("{icon} {}", job.name)).strong());
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {

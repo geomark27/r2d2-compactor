@@ -6,6 +6,9 @@
 # Binarios empaquetados para publicar en GitHub Releases (make release)
 /dist/
 
+# FFmpeg de Windows para empaquetar (pesado; se baja con `make vendor-ffmpeg`)
+/vendor/
+
 # Cargo.lock: se versiona porque este proyecto produce un binario (no una librería).
 # No lo ignores.
 

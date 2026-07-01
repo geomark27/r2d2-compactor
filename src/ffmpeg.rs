@@ -136,4 +136,26 @@ impl Worker {
         }
         Ok(())
     }
+
+    /// Ejecuta FFmpeg hasta terminar sin reportar progreso (para operaciones
+    /// rápidas como codificar una imagen). Respeta la cancelación.
+    pub fn run_quiet(&self, args: &[String]) -> Result<(), String> {
+        if self.cancel_flag.load(Ordering::SeqCst) {
+            return Err("__canceled__".to_string());
+        }
+        let status = Command::new(&self.ffmpeg)
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .stdin(Stdio::null())
+            .status()
+            .map_err(|e| format!("no se pudo iniciar FFmpeg: {e}"))?;
+        if self.cancel_flag.load(Ordering::SeqCst) {
+            return Err("__canceled__".to_string());
+        }
+        if !status.success() {
+            return Err(format!("FFmpeg terminó con código {:?}", status.code()));
+        }
+        Ok(())
+    }
 }

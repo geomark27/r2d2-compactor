@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es
 
-App de escritorio nativa (Rust + egui/eframe) para comprimir videos de evidencia pesados a un tamaño objetivo en MB antes de subirlos a SharePoint/Echo. No es un servicio ni tiene backend: es un único binario que orquesta **FFmpeg como proceso externo**.
+App de escritorio nativa (Rust + egui/eframe) para comprimir **videos e imágenes** de evidencia pesados a un tamaño objetivo en MB antes de subirlos a SharePoint/Echo. No es un servicio ni tiene backend: orquesta **FFmpeg como proceso externo**. FFmpeg se distribuye **incluido** en el `.zip` de release (ver más abajo).
 
 ## Módulos (`src/`)
 
 | Archivo | Responsabilidad |
 |---------|-----------------|
 | `main.rs` | Punto de entrada: declara los módulos y arranca la ventana eframe. |
-| `model.rs` | Tipos de dominio: `Msg` (canal trabajo→UI), `Job`, `JobState`. |
+| `model.rs` | Tipos de dominio: `Msg` (canal trabajo→UI, `Done` lleva la ruta de salida), `Job`, `JobState`, `MediaKind` (Video/Image + `from_path`). |
 | `util.rs` | Helpers puros sin dependencias del resto: `fmt_size`, `parse_out_time`, `open_containing_folder`. |
-| `ffmpeg.rs` | Localización e invocación de FFmpeg/FFprobe: `resolve_tool`, `which_in_path`, `null_device`, `probe_duration`, y el struct `Worker` con `Worker::run_pass` (contexto compartido del hilo: ruta de ffmpeg, canal `tx`, `cancel_flag`, `current_child`). |
-| `queue.rs` | Lógica de compresión two-pass en el hilo de trabajo: `run_queue`, constantes `AUDIO_KBPS`/`MIN_VIDEO_KBPS`, `cleanup_passlog`. |
+| `ffmpeg.rs` | Localización e invocación de FFmpeg/FFprobe: `resolve_tool`, `which_in_path`, `null_device`, `probe_duration`, y el struct `Worker` con `run_pass` (con progreso, para video) y `run_quiet` (sin progreso, para imágenes). |
+| `queue.rs` | Cola en el hilo de trabajo: `run_queue` enruta por `MediaKind` a `compress_video` (two-pass H.264) o `compress_image` (búsqueda binaria de calidad JPEG). `QueuedJob`, constantes de bitrate, `cleanup_passlog`. |
 | `update.rs` | Auto-actualización desde GitHub Releases: `check_latest`, `self_update`, `is_newer`, enum `UpdateStatus`. Tiene tests unitarios de comparación de versiones. |
 | `app.rs` | GUI egui: struct `App` (estado) + `impl eframe::App` (renderizado y polling). |
 
@@ -51,15 +51,20 @@ Estado compartido entre hilos:
 - `cancel_flag: Arc<AtomicBool>` — la UI lo marca al pulsar "Cancelar"; el hilo de trabajo lo consulta en cada línea de progreso.
 - `current_child: Arc<Mutex<Option<Child>>>` — referencia al proceso FFmpeg activo para poder matarlo (`child.kill()`) al cancelar.
 
-### Flujo de compresión (por video, en `run_queue`)
+### Flujo de compresión (en `run_queue`, enrutado por `MediaKind`)
 
-Es **two-pass H.264** apuntando a un tamaño objetivo:
-1. El bitrate de video se calcula desde la duración: `video_kbps = target_mb*8192/duration - AUDIO_KBPS`, con piso `MIN_VIDEO_KBPS` (si el piso se aplica, el resultado puede exceder el objetivo → se emite `warning`).
-2. **Pass 1** (`-pass 1`, `-an`, salida a `null_device()`): análisis, cuenta como el primer 50% del progreso.
-3. **Pass 2** (`-pass 2`, `+faststart`, AAC): codificación real, el segundo 50%.
-4. Salida: `{stem}_comp.mp4` en la carpeta del original o en `out_dir` si se eligió.
+**Video** (`compress_video`) — two-pass H.264 apuntando a un tamaño objetivo:
+1. El bitrate se calcula desde la duración: `video_kbps = target_mb*8192/duration - AUDIO_KBPS`, con piso `MIN_VIDEO_KBPS` (si aplica, puede exceder el objetivo → `warning`).
+2. **Pass 1** (`-pass 1`, `-an`, salida a `null_device()`): análisis, primer 50% del progreso.
+3. **Pass 2** (`-pass 2`, `+faststart`, AAC): codificación real, segundo 50%.
+4. Salida: `{stem}_comp.mp4`. El progreso sale de `-progress pipe:1` (`out_time=` → `parse_out_time`) mapeado a `[base_frac, base_frac+span_frac]`.
 
-El progreso se obtiene parseando `-progress pipe:1` de FFmpeg línea por línea en `run_ffmpeg_pass` (`out_time=` → `parse_out_time`), mapeado al rango `[base_frac, base_frac+span_frac]`.
+**Imagen** (`compress_image`) — a JPEG apuntando al mismo tamaño objetivo:
+1. El peso de un JPEG decrece de forma monótona al subir `-q:v` (2 = mejor, 31 = peor), así que se hace **búsqueda binaria** del `q` más bajo (mejor calidad) cuyo tamaño ≤ objetivo, usando `Worker::run_quiet` (sin barra de progreso).
+2. Si ni con `q=31` se logra, se codifica a `q=31` con un `warning` sugiriendo bajar la resolución.
+3. Salida: `{stem}_comp.jpg`.
+
+La ruta de salida la calcula `output_path` en `queue.rs` y viaja en `Msg::Done` hacia la UI (antes se recomputaba en `app.rs`).
 
 ### Detalles frágiles al editar
 
@@ -78,18 +83,20 @@ La app se auto-actualiza desde **GitHub Releases** (repo `geomark27/r2d2-compact
 
 - **Versión**: `env!("CARGO_PKG_VERSION")` — la fuente de verdad es el campo `version` de `Cargo.toml`. Los tags de git usan prefijo `v` (`v1.0.0`); `is_newer` los normaliza quitando la `v`.
 - **Al arrancar**, `App::new()` lanza un hilo que llama `update::check_latest()` (GitHub API `/releases/latest`). El resultado se guarda en `Arc<Mutex<UpdateStatus>>` y la UI muestra un banner con botón "Actualizar ahora" si hay versión nueva. Un error al arrancar (sin internet) se degrada silenciosamente a `UpToDate` para no molestar.
-- **Al pulsar el botón**, otro hilo descarga el asset + `checksums.txt`, verifica el SHA-256 y usa el crate `self-replace` para intercambiar el binario en uso (maneja el caso Windows del `.exe` bloqueado). Requiere reiniciar la app.
+- **Al pulsar el botón**, otro hilo descarga el asset + `checksums.txt`, verifica el SHA-256 y usa el crate `self-replace` para intercambiar el binario en uso (maneja el caso Windows del `.exe` bloqueado). Requiere reiniciar la app. **El updater descarga el `.exe` suelto, no el zip** — el FFmpeg ya está instalado desde la descarga inicial y no se toca.
 - **El nombre del asset** (`asset_name()`) debe coincidir con lo que publica el `Makefile`: `r2d2-compactor-windows-amd64.exe` / `r2d2-compactor-linux-amd64`.
 
-**Publicar una versión** (necesita `gh` autenticado y el toolchain de cross-compile listo):
+**Distribución con FFmpeg incluido**: el release de Windows es un **`.zip`** (`r2d2-compactor-windows-amd64.zip`) que contiene la app + una carpeta `ffmpeg/` con `ffmpeg.exe`/`ffprobe.exe`. Los binarios de FFmpeg viven en `vendor/ffmpeg-win/` (gitignored, ~195 MB); se bajan una vez con `make vendor-ffmpeg`.
+
+**Publicar una versión** (necesita `gh` autenticado, toolchain de cross-compile y `make vendor-ffmpeg` hecho):
 
 ```bash
-make release          # bump patch en Cargo.toml + build + checksums + tag + gh release
+make release          # bump patch + build + zip con FFmpeg + checksums + tag + gh release
 make release-minor    # bump minor
 make release-major    # bump major
 ```
 
-El target `_release` bumpea `Cargo.toml`, compila Linux + Windows, genera `dist/checksums.txt`, crea el tag `vX.Y.Z`, pushea y publica el release. Si cambia el nombre del repo o del binario, actualizar la constante `REPO` en `update.rs`, `asset_name()`, y `BINARY`/`WIN_TARGET` en el `Makefile`.
+`_release` bumpea `Cargo.toml`, compila Linux, arma el zip de Windows (`dist-windows`), copia el `.exe` suelto, genera `checksums.txt` (zip + exe + linux), crea el tag `vX.Y.Z`, pushea y publica. Si cambia el nombre del repo o del binario, actualizar `REPO` y `asset_name()` en `update.rs`, y `BINARY`/`WIN_TARGET`/`VENDOR` en el `Makefile`.
 
 ## Entorno de desarrollo vs. target de distribución (importante)
 
@@ -98,7 +105,7 @@ El target `_release` bumpea `Cargo.toml`, compila Linux + Windows, genera `dist/
 - `cargo build`/`cargo run` en WSL produce un binario **Linux** (útil solo para probar en desarrollo). En Linux `rfd` (diálogos de archivo) requiere las libs de desarrollo de GTK3: `sudo apt install libgtk-3-dev pkg-config`.
 - Para el `.exe` de Windows hay dos caminos:
   1. **Compilar en Windows** (nativo): instalar Rust en Windows y `cargo build --release` allí. `rfd` usa diálogos nativos, no necesita GTK.
-  2. **Cross-compilar desde WSL**: `rustup target add x86_64-pc-windows-gnu` + `sudo apt install mingw-w64`, luego `cargo build --release --target x86_64-pc-windows-gnu`. El `.exe` queda en `target/x86_64-pc-windows-gnu/release/`.
-- Ninguno de los dos está preparado aún en este WSL (solo hay target `x86_64-unknown-linux-gnu`, sin mingw).
+  2. **Cross-compilar desde WSL** (ya configurado): `rustup target add x86_64-pc-windows-gnu` + `sudo apt install mingw-w64`, luego `make build-windows`. El `.exe` queda en `target/x86_64-pc-windows-gnu/release/`.
+- Nota de cross-compile: `eframe 0.24` requiere que `winapi` tenga las features `winuser`/`windef` (declaradas en `Cargo.toml` bajo `[target.'cfg(windows)'.dependencies]`), y el `.exe` de release usa `windows_subsystem = "windows"` para no abrir consola.
 
 Diferencias por plataforma en el código: `cfg!(windows)` decide los nombres de binarios de FFmpeg (`.exe`) y `null_device()` (`NUL` vs `/dev/null`); `open_containing_folder` tiene una rama por SO (explorer/xdg-open/open).
