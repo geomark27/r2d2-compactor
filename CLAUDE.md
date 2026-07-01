@@ -15,19 +15,22 @@ App de escritorio nativa (Rust + egui/eframe) para comprimir videos de evidencia
 | `util.rs` | Helpers puros sin dependencias del resto: `fmt_size`, `parse_out_time`, `open_containing_folder`. |
 | `ffmpeg.rs` | Localización e invocación de FFmpeg/FFprobe: `resolve_tool`, `which_in_path`, `null_device`, `probe_duration`, y el struct `Worker` con `Worker::run_pass` (contexto compartido del hilo: ruta de ffmpeg, canal `tx`, `cancel_flag`, `current_child`). |
 | `queue.rs` | Lógica de compresión two-pass en el hilo de trabajo: `run_queue`, constantes `AUDIO_KBPS`/`MIN_VIDEO_KBPS`, `cleanup_passlog`. |
+| `update.rs` | Auto-actualización desde GitHub Releases: `check_latest`, `self_update`, `is_newer`, enum `UpdateStatus`. Tiene tests unitarios de comparación de versiones. |
 | `app.rs` | GUI egui: struct `App` (estado) + `impl eframe::App` (renderizado y polling). |
 
-Dependencias entre módulos (sin ciclos): `app` → {`ffmpeg`, `queue`, `model`, `util`}; `queue` → {`ffmpeg`, `model`}; `ffmpeg` → {`model`, `util`}.
+Dependencias entre módulos (sin ciclos): `app` → {`ffmpeg`, `queue`, `update`, `model`, `util`}; `queue` → {`ffmpeg`, `model`}; `ffmpeg` → {`model`, `util`}.
 
 ## Comandos
 
 ```bash
-cargo build --release      # binario en target/release/compresor-evidencias(.exe)
+cargo build --release      # binario en target/release/r2d2-compactor(.exe)
 cargo run                  # ejecutar en desarrollo
 cargo check                # verificación rápida sin compilar el binario
+cargo test                 # tests (comparación de versiones en update.rs)
+make lint                  # cargo fmt --check + clippy -D warnings
 ```
 
-No hay tests ni linter configurados en el repo.
+`Cargo.toml` fija `clippy -D warnings` como estándar del proyecto (cero warnings). El `Makefile` tiene los atajos de build/lint/release.
 
 ## Dependencia de FFmpeg (crítico)
 
@@ -68,6 +71,25 @@ El progreso se obtiene parseando `-progress pipe:1` de FFmpeg línea por línea 
 ### Versiones pinneadas
 
 Varias dependencias en `Cargo.toml` están fijadas con `=x.y.z` (`home`, `hashbrown`, `indexmap`, `ahash`, `url`) para compatibilidad con una versión antigua de Cargo. No actualizar a la ligera; si se necesita subir `eframe`/`egui`, quitar los pines y `cargo update` conscientemente.
+
+## Auto-actualización y releases
+
+La app se auto-actualiza desde **GitHub Releases** (repo `geomark27/r2d2-compactor`), replicando el patrón del CLI `gtt`:
+
+- **Versión**: `env!("CARGO_PKG_VERSION")` — la fuente de verdad es el campo `version` de `Cargo.toml`. Los tags de git usan prefijo `v` (`v1.0.0`); `is_newer` los normaliza quitando la `v`.
+- **Al arrancar**, `App::new()` lanza un hilo que llama `update::check_latest()` (GitHub API `/releases/latest`). El resultado se guarda en `Arc<Mutex<UpdateStatus>>` y la UI muestra un banner con botón "Actualizar ahora" si hay versión nueva. Un error al arrancar (sin internet) se degrada silenciosamente a `UpToDate` para no molestar.
+- **Al pulsar el botón**, otro hilo descarga el asset + `checksums.txt`, verifica el SHA-256 y usa el crate `self-replace` para intercambiar el binario en uso (maneja el caso Windows del `.exe` bloqueado). Requiere reiniciar la app.
+- **El nombre del asset** (`asset_name()`) debe coincidir con lo que publica el `Makefile`: `r2d2-compactor-windows-amd64.exe` / `r2d2-compactor-linux-amd64`.
+
+**Publicar una versión** (necesita `gh` autenticado y el toolchain de cross-compile listo):
+
+```bash
+make release          # bump patch en Cargo.toml + build + checksums + tag + gh release
+make release-minor    # bump minor
+make release-major    # bump major
+```
+
+El target `_release` bumpea `Cargo.toml`, compila Linux + Windows, genera `dist/checksums.txt`, crea el tag `vX.Y.Z`, pushea y publica el release. Si cambia el nombre del repo o del binario, actualizar la constante `REPO` en `update.rs`, `asset_name()`, y `BINARY`/`WIN_TARGET` en el `Makefile`.
 
 ## Entorno de desarrollo vs. target de distribución (importante)
 

@@ -6,6 +6,7 @@ mod app;
 mod ffmpeg;
 mod model;
 mod queue;
+mod update;
 mod util;
 
 use app::App;
@@ -19,7 +20,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "Compresor de Evidencias",
+        "R2D2 Compactor",
         options,
         Box::new(|_cc| Box::new(App::new())),
     )

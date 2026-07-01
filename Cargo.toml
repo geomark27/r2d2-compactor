@@ -1,13 +1,19 @@
 [package]
-name = "compresor-evidencias"
+name = "r2d2-compactor"
 version = "1.0.0"
 edition = "2021"
-description = "Compresor de videos de evidencia para Aforo (two-pass H.264 via FFmpeg)"
+description = "Compresor de videos de evidencia (two-pass H.264 via FFmpeg) con auto-actualización"
 
 [dependencies]
 eframe = { version = "0.24", default-features = false, features = ["glow", "default_fonts", "persistence"] }
 egui = "0.24"
 rfd = "0.12"
+# Auto-actualización: HTTP + verificación de integridad + reemplazo del binario en uso.
+ureq = { version = "2", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+hex = "0.4"
+self-replace = "1"
 home = "=0.5.9"
 hashbrown = "=0.14.5"
 indexmap = "=2.2.6"

@@ -11,6 +11,7 @@ use std::time::Duration;
 use crate::ffmpeg::{probe_duration, resolve_tool, which_in_path, Worker};
 use crate::model::{Job, JobState, Msg};
 use crate::queue::run_queue;
+use crate::update::{self, UpdateStatus};
 use crate::util::{fmt_size, open_containing_folder};
 
 /// Estado global de la aplicación de escritorio.
@@ -27,6 +28,7 @@ pub struct App {
     ffmpeg: PathBuf,
     ffprobe: PathBuf,
     ffmpeg_missing: bool,
+    update_status: Arc<Mutex<UpdateStatus>>,
 }
 
 impl App {
@@ -34,6 +36,22 @@ impl App {
         let ffmpeg = resolve_tool("ffmpeg.exe", "ffmpeg");
         let ffprobe = resolve_tool("ffprobe.exe", "ffprobe");
         let missing = !ffmpeg.exists() && which_in_path(&ffmpeg).is_none();
+
+        // Comprueba en segundo plano si hay una versión nueva, sin bloquear la UI.
+        let update_status = Arc::new(Mutex::new(UpdateStatus::Checking));
+        {
+            let status = update_status.clone();
+            std::thread::spawn(move || {
+                // Un error al arrancar (sin internet, límite de API) se trata como
+                // "al día" para no molestar con un aviso rojo.
+                let next = match update::check_latest() {
+                    Ok(Some(version)) => UpdateStatus::Available(version),
+                    _ => UpdateStatus::UpToDate,
+                };
+                *status.lock().unwrap() = next;
+            });
+        }
+
         Self {
             jobs: Vec::new(),
             next_id: 1,
@@ -47,7 +65,62 @@ impl App {
             ffmpeg,
             ffprobe,
             ffmpeg_missing: missing,
+            update_status,
         }
+    }
+
+    /// Dibuja el banner de actualización según el estado actual y gestiona el
+    /// botón "Actualizar ahora" (que lanza la descarga en un hilo aparte).
+    fn show_update_banner(&mut self, ui: &mut egui::Ui) {
+        let status = self.update_status.lock().unwrap().clone();
+        match status {
+            UpdateStatus::Available(version) => {
+                ui.horizontal(|ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(96, 205, 128),
+                        format!("Nueva versión {version} disponible."),
+                    );
+                    if ui.button("Actualizar ahora").clicked() {
+                        *self.update_status.lock().unwrap() = UpdateStatus::Downloading;
+                        let status = self.update_status.clone();
+                        std::thread::spawn(move || {
+                            let next = match update::self_update(&version) {
+                                Ok(()) => UpdateStatus::Updated(version.clone()),
+                                Err(e) => UpdateStatus::Error(e),
+                            };
+                            *status.lock().unwrap() = next;
+                        });
+                    }
+                });
+            }
+            UpdateStatus::Downloading => {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Descargando actualización…");
+                });
+            }
+            UpdateStatus::Updated(version) => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(96, 205, 128),
+                    format!("Actualizado a {version}. Cierra y vuelve a abrir la app."),
+                );
+            }
+            UpdateStatus::Error(e) => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(248, 113, 113),
+                    format!("No se pudo actualizar: {e}"),
+                );
+            }
+            UpdateStatus::Checking | UpdateStatus::UpToDate => {}
+        }
+    }
+
+    /// `true` si hay una comprobación o descarga de actualización en curso.
+    fn update_in_progress(&self) -> bool {
+        matches!(
+            *self.update_status.lock().unwrap(),
+            UpdateStatus::Checking | UpdateStatus::Downloading
+        )
     }
 
     /// Añade un video a la cola, evitando duplicados y leyendo su metadata.
@@ -227,7 +300,7 @@ impl Default for App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll();
-        if self.running {
+        if self.running || self.update_in_progress() {
             ctx.request_repaint_after(Duration::from_millis(120));
         }
 
@@ -245,7 +318,12 @@ impl eframe::App for App {
 
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.add_space(10.0);
-            ui.heading("Compresor de Evidencias");
+            ui.horizontal(|ui| {
+                ui.heading("R2D2 Compactor");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.weak(format!("v{}", update::current_version()));
+                });
+            });
             ui.label("Reduce videos pesados a un tamaño objetivo conservando la calidad. FFmpeg embebido.");
             if self.ffmpeg_missing {
                 ui.colored_label(
@@ -253,6 +331,7 @@ impl eframe::App for App {
                     "No se encontró ffmpeg. Coloca ffmpeg.exe/ffprobe.exe en la carpeta 'ffmpeg' junto al programa.",
                 );
             }
+            self.show_update_banner(ui);
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {

@@ -3,6 +3,9 @@
 **/*.rs.bk
 *.pdb
 
+# Binarios empaquetados para publicar en GitHub Releases (make release)
+/dist/
+
 # Cargo.lock: se versiona porque este proyecto produce un binario (no una librería).
 # No lo ignores.
 
