@@ -1,0 +1,38 @@
+# ---- Rust / Cargo ----
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock: se versiona porque este proyecto produce un binario (no una librería).
+# No lo ignores.
+
+# ---- Binarios de FFmpeg (NO se versionan: cada quien los coloca localmente) ----
+# Solo se conserva la nota que explica dónde descargarlos.
+/ffmpeg/*
+!/ffmpeg/COLOCAR_FFMPEG_AQUI.txt
+
+# ---- Salidas de compresión y videos de prueba ----
+*_comp.mp4
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.m4v
+*.wmv
+
+# ---- Logs temporales del two-pass de FFmpeg ----
+cev_*-0.log
+cev_*-0.log.mbtree
+*.log
+*.log.mbtree
+
+# ---- Sistema operativo ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---- Editores / IDEs ----
+.idea/
+.vscode/
+*.swp
+*~

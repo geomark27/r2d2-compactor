@@ -1,0 +1,12 @@
+Coloca aquí los dos binarios de FFmpeg para Windows (64 bits):
+
+    ffmpeg.exe
+    ffprobe.exe
+
+De dónde bajarlos (build oficial de Windows, gratis):
+  - https://www.gyan.dev/ffmpeg/builds/  -> "release essentials" (ffmpeg-release-essentials.zip)
+  - o https://github.com/BtbN/FFmpeg-Builds/releases  (ffmpeg-master-latest-win64-gpl.zip)
+
+Dentro del zip, en la carpeta /bin vienen ffmpeg.exe y ffprobe.exe.
+Cópialos aquí. Al compilar con "cargo build --release", copia esta misma
+carpeta "ffmpeg" junto al .exe generado en target/release/.
