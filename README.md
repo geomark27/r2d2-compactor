@@ -81,3 +81,7 @@ Cada release publica tres assets: el **`.zip` de Windows** (app + FFmpeg, lo que
 - `"-preset".into(), "medium".into()` → cámbialo a `"slow"` para más compresión (más lento) o `"fast"` para más velocidad.
 - `AUDIO_KBPS` (128) → bitrate de audio.
 - `MIN_VIDEO_KBPS` (150) → piso de bitrate para videos muy largos relativos al tamaño objetivo.
+
+## Aprende cómo funciona
+
+📚 Documento explicativo de la lógica de compresión y optimización (bitrate, two-pass, códecs H.264, CRF, JPEG…), conectado con el código: [`docs/COMPRESION-EXPLICADA.md`](docs/COMPRESION-EXPLICADA.md)
