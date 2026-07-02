@@ -21,7 +21,12 @@ App de escritorio nativa (Rust + egui/eframe) para comprimir **videos e imágene
 
 La documentación para el **usuario final** vive en `docs/` (p. ej. `docs/GUIA-DE-USUARIO.md`); cualquier guía o material para los compañeros va ahí, no en el README (que es más para instalación/desarrollo).
 
-El logo está en `assets/icon.png` (PNG cuadrado con transparencia), embebido con `include_bytes!` en `main.rs` (`ICON_PNG`). Se usa como icono de ventana/barra de tareas (`ViewportBuilder::with_icon` vía `eframe::icon_data::from_png_bytes`) y como logo del encabezado (textura cargada en `App::ensure_logo`). Para cambiarlo, se reemplaza el archivo y se recompila. Nota: esto **no** cambia el icono del `.exe` en el Explorador de Windows (eso requeriría incrustar un `.ico` con un build script tipo `winresource`).
+El logo está en `assets/icon.png` (PNG cuadrado con transparencia). Se usa en tres lugares, todos alimentados por ese único archivo:
+1. **Icono de ventana / barra de tareas** (runtime): `main.rs` lo embebe con `include_bytes!` (`ICON_PNG`) y lo aplica con `ViewportBuilder::with_icon` vía `eframe::icon_data::from_png_bytes`.
+2. **Logo del encabezado** (dentro de la UI): textura cargada de forma diferida en `App::ensure_logo`.
+3. **Icono del `.exe` en el Explorador de Windows**: `build.rs` convierte el PNG a un `.ico` multi-resolución (crates `image` + `ico`) y lo incrusta como recurso con `winresource` (usa `x86_64-w64-mingw32-windres` al cross-compilar). Solo actúa cuando el target es Windows.
+
+Para cambiar el logo: reemplazar `assets/icon.png` y recompilar; los tres usos se actualizan solos.
 
 Dependencias entre módulos (sin ciclos): `app` → {`ffmpeg`, `queue`, `update`, `model`, `util`}; `queue` → {`ffmpeg`, `model`}; `ffmpeg` → {`model`, `util`}.
 
