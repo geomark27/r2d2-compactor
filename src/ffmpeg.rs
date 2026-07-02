@@ -6,6 +6,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use crate::model::Msg;
 use crate::util::parse_out_time;
@@ -117,13 +118,13 @@ impl Worker {
             .spawn()
             .map_err(|e| format!("no se pudo iniciar FFmpeg: {e}"))?;
         let stdout = child.stdout.take().ok_or("sin stdout")?;
-
-        *self.current_child.lock().unwrap() = None; // se llena luego de mover el child abajo
+        // Registra el proceso para poder matarlo al cancelar o cerrar la app.
+        *self.current_child.lock().unwrap() = Some(child);
 
         let reader = BufReader::new(stdout);
         for line in reader.lines().map_while(Result::ok) {
             if self.cancel_flag.load(Ordering::SeqCst) {
-                let _ = child.kill();
+                self.kill_current();
                 let _ = self.tx.send(Msg::Canceled { id });
                 return Err("__canceled__".to_string());
             }
@@ -138,6 +139,11 @@ impl Worker {
             }
         }
 
+        // El stream terminó: FFmpeg acabó (o fue detenido desde otro hilo).
+        let Some(mut child) = self.current_child.lock().unwrap().take() else {
+            let _ = self.tx.send(Msg::Canceled { id });
+            return Err("__canceled__".to_string());
+        };
         let status = child
             .wait()
             .map_err(|e| format!("error esperando FFmpeg: {e}"))?;
@@ -151,8 +157,17 @@ impl Worker {
         Ok(())
     }
 
+    /// Mata y limpia (reap) el proceso de FFmpeg activo, si lo hay.
+    fn kill_current(&self) {
+        if let Some(mut child) = self.current_child.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+
     /// Ejecuta FFmpeg hasta terminar sin reportar progreso (para operaciones
-    /// rápidas como codificar una imagen). Respeta la cancelación.
+    /// rápidas como codificar una imagen). Sondea el estado para poder cancelar
+    /// o cerrar la app aunque no haya salida de progreso que leer.
     pub fn run_quiet(&self, args: &[String]) -> Result<(), String> {
         if self.cancel_flag.load(Ordering::SeqCst) {
             return Err("__canceled__".to_string());
@@ -163,15 +178,37 @@ impl Worker {
             .stderr(Stdio::null())
             .stdin(Stdio::null());
         hide_console(&mut cmd);
-        let status = cmd
-            .status()
+        let child = cmd
+            .spawn()
             .map_err(|e| format!("no se pudo iniciar FFmpeg: {e}"))?;
-        if self.cancel_flag.load(Ordering::SeqCst) {
-            return Err("__canceled__".to_string());
+        *self.current_child.lock().unwrap() = Some(child);
+
+        loop {
+            if self.cancel_flag.load(Ordering::SeqCst) {
+                self.kill_current();
+                return Err("__canceled__".to_string());
+            }
+            let mut guard = self.current_child.lock().unwrap();
+            match guard.as_mut() {
+                Some(child) => match child.try_wait() {
+                    Ok(Some(status)) => {
+                        let _ = guard.take();
+                        return if status.success() {
+                            Ok(())
+                        } else {
+                            Err(format!("FFmpeg terminó con código {:?}", status.code()))
+                        };
+                    }
+                    Ok(None) => {} // sigue corriendo
+                    Err(e) => {
+                        let _ = guard.take();
+                        return Err(format!("error esperando FFmpeg: {e}"));
+                    }
+                },
+                None => return Err("__canceled__".to_string()), // detenido desde otro hilo
+            }
+            drop(guard);
+            std::thread::sleep(Duration::from_millis(30));
         }
-        if !status.success() {
-            return Err(format!("FFmpeg terminó con código {:?}", status.code()));
-        }
-        Ok(())
     }
 }

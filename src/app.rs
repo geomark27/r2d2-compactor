@@ -127,6 +127,15 @@ impl App {
         )
     }
 
+    /// Detiene y limpia el proceso de FFmpeg en curso, si lo hay. Se usa al
+    /// cancelar y al cerrar la app para no dejar procesos huérfanos.
+    fn stop_current_child(&self) {
+        if let Some(mut child) = self.current_child.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+
     /// Añade un archivo (video o imagen) a la cola, evitando duplicados.
     fn add_file(&mut self, path: PathBuf) {
         if self.jobs.iter().any(|j| j.input == path) {
@@ -462,11 +471,7 @@ impl eframe::App for App {
                         .clicked()
                     {
                         self.cancel_flag.store(true, Ordering::SeqCst);
-                        if let Ok(mut c) = self.current_child.lock() {
-                            if let Some(child) = c.as_mut() {
-                                let _ = child.kill();
-                            }
-                        }
+                        self.stop_current_child();
                     }
                 });
             });
@@ -603,5 +608,12 @@ impl eframe::App for App {
                 }
             });
         });
+    }
+
+    /// Se ejecuta al cerrar la ventana: detiene cualquier FFmpeg en curso para
+    /// que no quede un proceso huérfano corriendo en segundo plano.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.cancel_flag.store(true, Ordering::SeqCst);
+        self.stop_current_child();
     }
 }
