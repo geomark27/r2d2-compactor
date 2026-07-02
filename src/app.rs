@@ -29,6 +29,8 @@ pub struct App {
     ffprobe: PathBuf,
     ffmpeg_missing: bool,
     update_status: Arc<Mutex<UpdateStatus>>,
+    /// Textura del logo, cargada de forma diferida en el primer frame.
+    logo: Option<egui::TextureHandle>,
 }
 
 impl App {
@@ -70,6 +72,19 @@ impl App {
             ffprobe,
             ffmpeg_missing: missing,
             update_status,
+            logo: None,
+        }
+    }
+
+    /// Carga el logo como textura la primera vez (necesita el `Context` de egui,
+    /// que no existe todavía en `new`). Si el PNG no es válido, se omite.
+    fn ensure_logo(&mut self, ctx: &egui::Context) {
+        if self.logo.is_some() {
+            return;
+        }
+        if let Ok(icon) = eframe::icon_data::from_png_bytes(crate::ICON_PNG) {
+            let image = egui::ColorImage::from(icon);
+            self.logo = Some(ctx.load_texture("logo", image, egui::TextureOptions::LINEAR));
         }
     }
 
@@ -320,6 +335,7 @@ impl Default for App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll();
+        self.ensure_logo(ctx);
         if self.running || self.update_in_progress() {
             ctx.request_repaint_after(Duration::from_millis(120));
         }
@@ -336,9 +352,17 @@ impl eframe::App for App {
             self.add_file(p);
         }
 
+        let logo_id = self.logo.as_ref().map(|t| t.id());
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.add_space(10.0);
             ui.horizontal(|ui| {
+                if let Some(id) = logo_id {
+                    ui.add(egui::Image::new(egui::load::SizedTexture::new(
+                        id,
+                        egui::vec2(36.0, 36.0),
+                    )));
+                    ui.add_space(4.0);
+                }
                 ui.heading("R2D2 Compactor");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.weak(format!("v{}", update::current_version()));

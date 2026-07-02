@@ -21,6 +21,8 @@ App de escritorio nativa (Rust + egui/eframe) para comprimir **videos e imágene
 
 La documentación para el **usuario final** vive en `docs/` (p. ej. `docs/GUIA-DE-USUARIO.md`); cualquier guía o material para los compañeros va ahí, no en el README (que es más para instalación/desarrollo).
 
+El logo está en `assets/icon.png` (PNG cuadrado con transparencia), embebido con `include_bytes!` en `main.rs` (`ICON_PNG`). Se usa como icono de ventana/barra de tareas (`ViewportBuilder::with_icon` vía `eframe::icon_data::from_png_bytes`) y como logo del encabezado (textura cargada en `App::ensure_logo`). Para cambiarlo, se reemplaza el archivo y se recompila. Nota: esto **no** cambia el icono del `.exe` en el Explorador de Windows (eso requeriría incrustar un `.ico` con un build script tipo `winresource`).
+
 Dependencias entre módulos (sin ciclos): `app` → {`ffmpeg`, `queue`, `update`, `model`, `util`}; `queue` → {`ffmpeg`, `model`}; `ffmpeg` → {`model`, `util`}.
 
 ## Comandos
