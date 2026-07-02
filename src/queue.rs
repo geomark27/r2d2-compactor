@@ -95,7 +95,7 @@ fn compress_video(
     let mut warning = None;
     if video_kbps < MIN_VIDEO_KBPS {
         video_kbps = MIN_VIDEO_KBPS;
-        warning = Some("Video muy largo para ese tamaño objetivo: puede superarlo.".to_string());
+        warning = Some("no alcanzó el objetivo (video muy largo para ese tamaño)".to_string());
     }
 
     let output = output_path(out_dir, &job.input, "mp4");
@@ -261,8 +261,7 @@ fn compress_image(
         None => (
             31,
             Some(
-                "La imagen no baja al tamaño objetivo ni con máxima compresión; \
-                 prueba una resolución máxima menor."
+                "no alcanzó el objetivo ni al máximo de compresión; prueba una resolución menor"
                     .to_string(),
             ),
         ),

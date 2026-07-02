@@ -240,12 +240,18 @@ impl App {
                             let saved = j.orig_bytes.filter(|&o| o > 0).map(|o| {
                                 (100.0 * (1.0 - final_bytes as f64 / o as f64)).round() as i64
                             });
-                            j.status = match (saved, &warning) {
-                                (Some(s), None) if s > 0 => {
+                            // Base: cuánto se logró comprimir (siempre se muestra).
+                            let base = match saved {
+                                Some(s) if s > 0 => {
                                     format!("Listo · {s}% más liviano ({})", fmt_size(final_bytes))
                                 }
-                                (_, Some(w)) => w.clone(),
                                 _ => format!("Listo ({})", fmt_size(final_bytes)),
+                            };
+                            // Si hubo advertencia, se añade para que el usuario sepa
+                            // que no se llegó al objetivo y por qué.
+                            j.status = match &warning {
+                                Some(w) => format!("⚠ {base} — {w}"),
+                                None => base,
                             };
                             j.output = Some(output);
                         }
