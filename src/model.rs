@@ -10,8 +10,8 @@ pub enum MediaKind {
 }
 
 impl MediaKind {
-    /// Detecta el tipo por la extensión del archivo. Lo desconocido se trata
-    /// como video (FFmpeg dará un error claro si no puede procesarlo).
+    /* Detecta el tipo por la extensión del archivo. Lo desconocido se trata
+    como video (FFmpeg dará un error claro si no puede procesarlo). */
     pub fn from_path(path: &Path) -> Self {
         let ext = path
             .extension()

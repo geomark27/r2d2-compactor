@@ -12,6 +12,10 @@ use sha2::{Digest, Sha256};
 
 /// Repositorio de GitHub donde se publican los releases.
 const REPO: &str = "geomark27/r2d2-compactor";
+/// Host del API REST de GitHub (para consultar metadatos del release).
+const API_BASE: &str = "https://api.github.com";
+/// Host de descarga de assets de los releases (binarios y checksums).
+const DOWNLOAD_BASE: &str = "https://github.com";
 
 /// Estado de la comprobación/aplicación de actualizaciones, compartido con la UI.
 #[derive(Clone, Debug)]
@@ -52,7 +56,7 @@ fn asset_name() -> &'static str {
 /// Consulta el release más reciente en GitHub y devuelve su tag si es más nuevo
 /// que la versión actual. `None` significa que ya está al día.
 pub fn check_latest() -> Result<Option<String>, String> {
-    let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
+    let url = format!("{API_BASE}/repos/{REPO}/releases/latest");
     let resp = ureq::get(&url)
         .set("User-Agent", "r2d2-compactor")
         .set("Accept", "application/vnd.github+json")
@@ -89,7 +93,7 @@ fn is_newer(candidate: &str, base: &str) -> bool {
 
 /// Descarga `checksums.txt` del release y devuelve el hash SHA-256 del asset dado.
 fn fetch_expected_hash(version: &str, asset: &str) -> Result<String, String> {
-    let url = format!("https://github.com/{REPO}/releases/download/{version}/checksums.txt");
+    let url = format!("{DOWNLOAD_BASE}/{REPO}/releases/download/{version}/checksums.txt");
     let body = ureq::get(&url)
         .set("User-Agent", "r2d2-compactor")
         .timeout(Duration::from_secs(15))
@@ -115,7 +119,7 @@ pub fn self_update(version: &str) -> Result<(), String> {
     let asset = asset_name();
     let expected = fetch_expected_hash(version, asset)?;
 
-    let url = format!("https://github.com/{REPO}/releases/download/{version}/{asset}");
+    let url = format!("{DOWNLOAD_BASE}/{REPO}/releases/download/{version}/{asset}");
     let resp = ureq::get(&url)
         .set("User-Agent", "r2d2-compactor")
         .timeout(Duration::from_secs(120))
