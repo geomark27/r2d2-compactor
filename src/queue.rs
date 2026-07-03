@@ -65,6 +65,9 @@ pub fn run_queue(
             }
         }
     }
+    // Señal explícita de fin de cola: la UI apaga `running` solo con esto,
+    // nunca infiriéndolo del estado de los jobs (evita la carrera del arranque).
+    let _ = worker.tx.send(Msg::Finished);
 }
 
 /// Ruta de salida `{stem}_comp.{ext}` en `out_dir` o junto al original.
@@ -318,9 +321,23 @@ fn cleanup_passlog(prefix: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::collect_pending;
-    use crate::model::{Job, JobState, MediaKind};
+    use super::{collect_pending, run_queue, QueuedJob};
+    use crate::ffmpeg::Worker;
+    use crate::model::{Job, JobState, MediaKind, Msg};
     use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::mpsc::Sender;
+    use std::sync::{Arc, Mutex};
+
+    fn worker(tx: Sender<Msg>, canceled: bool) -> Worker {
+        Worker {
+            ffmpeg: PathBuf::from("ffmpeg-inexistente"),
+            tx,
+            cancel_flag: Arc::new(AtomicBool::new(canceled)),
+            current_child: Arc::new(Mutex::new(None)),
+            log_path: std::env::temp_dir().join("r2d2-test.log"),
+        }
+    }
 
     fn job(id: u64, state: JobState) -> Job {
         Job {
@@ -363,5 +380,31 @@ mod tests {
     #[test]
     fn lista_vacia_no_produce_trabajos() {
         assert!(collect_pending(&[]).is_empty());
+    }
+
+    #[test]
+    fn run_queue_siempre_envia_finished() {
+        // Contrato con la UI: `running` baja solo con `Msg::Finished`, así que
+        // run_queue debe enviarlo siempre al terminar, incluso sin trabajos.
+        let (tx, rx) = std::sync::mpsc::channel();
+        run_queue(worker(tx, false), Vec::new(), 90, 1080, None);
+        assert!(matches!(rx.recv(), Ok(Msg::Finished)));
+        // Y nada más después: el emisor ya se destruyó.
+        assert!(rx.recv().is_err());
+    }
+
+    #[test]
+    fn run_queue_envia_finished_al_cancelar() {
+        // Con la cancelación ya marcada, la cola no procesa nada pero la señal
+        // de fin llega igual (de lo contrario la UI quedaría "Procesando…").
+        let (tx, rx) = std::sync::mpsc::channel();
+        let jobs = vec![QueuedJob {
+            id: 1,
+            input: PathBuf::from("f1.mp4"),
+            kind: MediaKind::Video,
+            duration: 10.0,
+        }];
+        run_queue(worker(tx, true), jobs, 90, 1080, None);
+        assert!(matches!(rx.recv(), Ok(Msg::Finished)));
     }
 }

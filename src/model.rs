@@ -45,6 +45,9 @@ pub enum Msg {
     Canceled {
         id: u64,
     },
+    /// El hilo de trabajo terminó la cola completa (haya sido con éxito,
+    /// con errores o por cancelación). Es la única señal que apaga `running`.
+    Finished,
 }
 
 /// Estado de cada trabajo de compresión dentro de la cola.

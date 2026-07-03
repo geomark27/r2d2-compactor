@@ -238,10 +238,27 @@ impl App {
     }
 
     /// Drena los mensajes del hilo de trabajo y actualiza el estado de los jobs.
+    ///
+    /// `running` baja únicamente con la señal explícita `Msg::Finished` del
+    /// hilo de trabajo (o si el canal se desconecta porque el hilo murió),
+    /// nunca infiriéndolo del estado de los jobs: entre el clic y el primer
+    /// `Progress` —o entre un job y el siguiente— hay instantes sin ningún
+    /// `Processing` que un heurístico confundiría con "la cola terminó".
     fn poll(&mut self) {
-        let mut finished_all = false;
+        let mut finished = false;
         if let Some(rx) = &self.rx {
-            while let Ok(msg) = rx.try_recv() {
+            loop {
+                let msg = match rx.try_recv() {
+                    Ok(msg) => msg,
+                    // Vacío: no hay nada nuevo en este frame, seguirá llegando.
+                    Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    // Desconectado: el hilo de trabajo ya no existe (terminó o
+                    // murió sin enviar `Finished`); no queda nada que esperar.
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        finished = true;
+                        break;
+                    }
+                };
                 match msg {
                     Msg::Progress { id, percent, phase } => {
                         if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id) {
@@ -294,36 +311,16 @@ impl App {
                             j.progress = 0.0;
                             j.status = "Cancelado".to_string();
                         }
-                        finished_all = true;
+                    }
+                    Msg::Finished => {
+                        finished = true;
                     }
                 }
             }
         }
-        if finished_all
-            || self.jobs.iter().all(|j| j.state != JobState::Processing)
-                && self.running
-                && self.jobs.iter().all(|j| {
-                    j.state == JobState::Done
-                        || j.state == JobState::Error
-                        || j.state == JobState::Queued && !self.cancel_flag.load(Ordering::SeqCst)
-                })
-        {
-            // Si ya no queda nada "processing" y no hay pendientes en la cola activa, terminamos.
-            let still_pending_active =
-                self.running && self.jobs.iter().any(|j| j.state == JobState::Processing);
-            if !still_pending_active {
-                // Verifica si el hilo de trabajo sigue vivo revisando si el canal se cerró
-                if let Some(rx) = &self.rx {
-                    if rx.try_recv().is_err() {
-                        // canal vacío; asumimos que terminó si no hay Processing
-                        let any_processing =
-                            self.jobs.iter().any(|j| j.state == JobState::Processing);
-                        if !any_processing {
-                            self.running = false;
-                        }
-                    }
-                }
-            }
+        if finished {
+            self.running = false;
+            self.rx = None;
         }
     }
 }

@@ -81,7 +81,7 @@ La ruta de salida la calcula `output_path` en `queue.rs` y viaja en `Msg::Done` 
 - **Filtro de escalado**: `scale=-2:min(ih\,{max_height})` — la coma va escapada (`\,`) porque la sintaxis de filtros de FFmpeg usa la coma como separador. No quitar el escape. Nunca agranda (usa `min(ih,...)`).
 - **Passlog**: cada job usa un `-passlogfile` único en `temp_dir` con timestamp; `cleanup_passlog` borra los `.log`/`.log.mbtree` al terminar. Si añades pasadas, mantener limpieza.
 - **Parámetros de calidad** (README los llama "ajustes rápidos"): `"-preset" "medium"`, `AUDIO_KBPS = 128`, `MIN_VIDEO_KBPS = 150`, tamaño objetivo por defecto `"90"` MB, resoluciones del ComboBox (1080p/720p/original) en `max_height_value()`.
-- La detección de "cola terminada" en `poll()` es heurística (basada en que ya no haya jobs en `Processing`), no en el cierre del canal.
+- La detección de "cola terminada" en `poll()` se basa en la señal explícita `Msg::Finished` que `run_queue` envía al terminar (con fallback en `TryRecvError::Disconnected` por si el hilo muere sin enviarla). **No** inferirla del estado de los jobs: entre el clic y el primer `Progress`, y entre un job y el siguiente, hay instantes sin ningún `Processing` que un heurístico confundiría con "terminó" (re-habilitando el botón y permitiendo una segunda cola sobre los mismos archivos).
 
 ### Versiones pinneadas
 
