@@ -256,7 +256,11 @@ impl App {
                         if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id) {
                             j.state = JobState::Processing;
                             j.progress = percent;
-                            j.status = format!("{phase} · {}%", percent.round());
+                            j.status = if percent <= 0.0 {
+                                phase.to_string()
+                            } else {
+                                format!("{phase} · {}%", percent.round())
+                            };
                         }
                     }
                     Msg::Done {
@@ -489,6 +493,10 @@ impl eframe::App for App {
                     )
                 };
                 ui.label(summary);
+                if self.running {
+                    ui.spinner();
+                    ui.label("Procesando…");
+                }
                 if self.log_path.exists()
                     && ui
                         .button("Ver registro")
@@ -618,6 +626,9 @@ impl eframe::App for App {
                         });
                         ui.add(egui::ProgressBar::new(job.progress / 100.0).desired_height(6.0));
                         ui.horizontal(|ui| {
+                            if job.state == JobState::Processing {
+                                ui.spinner();
+                            }
                             ui.label(&job.status);
                             if job.state == JobState::Done {
                                 if let Some(out) = &job.output {

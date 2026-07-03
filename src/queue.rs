@@ -90,6 +90,14 @@ fn compress_video(
         return Err("no se pudo leer la duración del video.".into());
     }
 
+    // Feedback inmediato: FFmpeg tarda un instante en arrancar y emitir progreso;
+    // avisa desde ya que el trabajo está en marcha.
+    let _ = worker.tx.send(Msg::Progress {
+        id,
+        percent: 0.0,
+        phase: "Preparando…",
+    });
+
     let total_kbit = target_mb as f64 * 8192.0;
     let mut video_kbps = (total_kbit / duration) as i64 - AUDIO_KBPS;
     let mut warning = None;
