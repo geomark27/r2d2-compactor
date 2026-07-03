@@ -125,6 +125,11 @@ fn compress_video(
         passlog_str.clone(),
         "-preset".into(),
         "medium".into(),
+        // Fuerza 8-bit 4:2:0: compatible con todos los reproductores. Sin esto,
+        // una fuente HDR/10-bit (común en celulares) sale en H.264 High 10, que
+        // el Reproductor de Windows no abre.
+        "-pix_fmt".into(),
+        "yuv420p".into(),
         "-an".into(),
     ];
     if let Some(sf) = &scale {
@@ -158,6 +163,9 @@ fn compress_video(
         passlog_str.clone(),
         "-preset".into(),
         "medium".into(),
+        // 8-bit 4:2:0 para máxima compatibilidad (ver nota en la pasada 1).
+        "-pix_fmt".into(),
+        "yuv420p".into(),
         "-c:a".into(),
         "aac".into(),
         "-b:a".into(),

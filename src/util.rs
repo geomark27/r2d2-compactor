@@ -25,6 +25,22 @@ pub fn parse_out_time(s: &str) -> Option<f64> {
     Some(h * 3600.0 + m * 60.0 + sec)
 }
 
+/// Abre un archivo con la aplicación predeterminada del sistema.
+pub fn open_file(path: &Path) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("explorer.exe").arg(path).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = Command::new("xdg-open").arg(path).spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("open").arg(path).spawn();
+    }
+}
+
 /// Abre el explorador de archivos del sistema seleccionando el archivo indicado.
 pub fn open_containing_folder(path: &Path) {
     #[cfg(target_os = "windows")]

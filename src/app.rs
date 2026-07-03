@@ -12,7 +12,7 @@ use crate::ffmpeg::{probe_duration, resolve_tool, which_in_path, Worker};
 use crate::model::{Job, JobState, MediaKind, Msg};
 use crate::queue::{run_queue, QueuedJob};
 use crate::update::{self, UpdateStatus};
-use crate::util::{fmt_size, open_containing_folder};
+use crate::util::{fmt_size, open_containing_folder, open_file};
 
 /// Estado global de la aplicación de escritorio.
 pub struct App {
@@ -31,6 +31,8 @@ pub struct App {
     update_status: Arc<Mutex<UpdateStatus>>,
     /// Textura del logo, cargada de forma diferida en el primer frame.
     logo: Option<egui::TextureHandle>,
+    /// Ruta del archivo de registro (stderr de FFmpeg de la última corrida).
+    log_path: PathBuf,
 }
 
 impl App {
@@ -73,6 +75,7 @@ impl App {
             ffmpeg_missing: missing,
             update_status,
             logo: None,
+            log_path: std::env::temp_dir().join("r2d2-compactor.log"),
         }
     }
 
@@ -226,12 +229,16 @@ impl App {
             }
         }
 
+        // Empieza un registro nuevo para esta corrida (trunca el anterior).
+        let _ = std::fs::File::create(&self.log_path);
+
         let out_dir = self.out_dir.clone();
         let worker = Worker {
             ffmpeg: self.ffmpeg.clone(),
             tx,
             cancel_flag: self.cancel_flag.clone(),
             current_child: self.current_child.clone(),
+            log_path: self.log_path.clone(),
         };
 
         std::thread::spawn(move || {
@@ -482,6 +489,14 @@ impl eframe::App for App {
                     )
                 };
                 ui.label(summary);
+                if self.log_path.exists()
+                    && ui
+                        .button("Ver registro")
+                        .on_hover_text("Abre el registro técnico de la última compresión (FFmpeg)")
+                        .clicked()
+                {
+                    open_file(&self.log_path);
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let can_run = !self.running && pending > 0 && !self.ffmpeg_missing;
                     if ui

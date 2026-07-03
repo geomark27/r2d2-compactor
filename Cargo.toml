@@ -16,6 +16,7 @@ hex = "0.4"
 self-replace = "1"
 home = "=0.5.9"
 hashbrown = "=0.14.5"
+
 indexmap = "=2.2.6"
 ahash = "=0.8.11"
 url = "=2.4.1"

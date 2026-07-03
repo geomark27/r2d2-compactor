@@ -91,6 +91,23 @@ pub struct Worker {
     pub tx: Sender<Msg>,
     pub cancel_flag: Arc<AtomicBool>,
     pub current_child: Arc<Mutex<Option<Child>>>,
+    /// Archivo donde se vuelca la salida de diagnóstico (stderr) de FFmpeg.
+    pub log_path: PathBuf,
+}
+
+impl Worker {
+    /// Abre el log en modo "append" para usarlo como stderr de FFmpeg. Si no se
+    /// puede abrir, cae a descartar la salida (nunca debe romper la compresión).
+    fn log_stderr(&self) -> Stdio {
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.log_path)
+        {
+            Ok(f) => Stdio::from(f),
+            Err(_) => Stdio::null(),
+        }
+    }
 }
 
 impl Worker {
@@ -110,7 +127,7 @@ impl Worker {
         let mut cmd = Command::new(&self.ffmpeg);
         cmd.args(args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(self.log_stderr())
             .stdin(Stdio::null());
         hide_console(&mut cmd);
 
@@ -175,7 +192,7 @@ impl Worker {
         let mut cmd = Command::new(&self.ffmpeg);
         cmd.args(args)
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(self.log_stderr())
             .stdin(Stdio::null());
         hide_console(&mut cmd);
         let child = cmd
