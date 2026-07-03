@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::ffmpeg::{probe_duration, resolve_tool, which_in_path, Worker};
 use crate::model::{Job, JobState, MediaKind, Msg};
-use crate::queue::{run_queue, QueuedJob};
+use crate::queue::{collect_pending, run_queue};
 use crate::update::{self, UpdateStatus};
 use crate::util::{fmt_size, open_containing_folder, open_file};
 
@@ -203,17 +203,8 @@ impl App {
         }
         let target_mb: u32 = self.target_mb.trim().parse().unwrap_or(90).max(5);
         let max_height = self.max_height_value();
-        let pending: Vec<QueuedJob> = self
-            .jobs
-            .iter()
-            .filter(|j| j.state == JobState::Queued)
-            .map(|j| QueuedJob {
-                id: j.id,
-                input: j.input.clone(),
-                kind: j.kind,
-                duration: j.duration.unwrap_or(0.0),
-            })
-            .collect();
+        // Solo los trabajos en cola (idempotente: no re-procesa los ya terminados).
+        let pending = collect_pending(&self.jobs);
         if pending.is_empty() {
             return;
         }

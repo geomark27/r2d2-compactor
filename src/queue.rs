@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
 use crate::ffmpeg::Worker;
-use crate::model::{MediaKind, Msg};
+use crate::model::{Job, JobState, MediaKind, Msg};
 
 /// Bitrate de audio (kbps) usado en la codificación AAC.
 const AUDIO_KBPS: i64 = 128;
@@ -21,6 +21,22 @@ pub struct QueuedJob {
     pub kind: MediaKind,
     /// Duración en segundos (solo relevante para video; 0 en imágenes).
     pub duration: f64,
+}
+
+/// Selecciona de la lista los trabajos que deben comprimirse: **solo** los que
+/// están en cola (`Queued`). Los ya terminados (`Done`), con error o en proceso
+/// quedan excluidos. Esto hace la operación **idempotente**: dar clic en
+/// "Comprimir todo" varias veces nunca re-procesa lo que ya está compactado.
+pub fn collect_pending(jobs: &[Job]) -> Vec<QueuedJob> {
+    jobs.iter()
+        .filter(|j| j.state == JobState::Queued)
+        .map(|j| QueuedJob {
+            id: j.id,
+            input: j.input.clone(),
+            kind: j.kind,
+            duration: j.duration.unwrap_or(0.0),
+        })
+        .collect()
 }
 
 /// Procesa la cola completa de forma secuencial, enrutando cada trabajo según su tipo.
@@ -298,4 +314,54 @@ fn compress_image(
 fn cleanup_passlog(prefix: &str) {
     let _ = std::fs::remove_file(format!("{prefix}-0.log"));
     let _ = std::fs::remove_file(format!("{prefix}-0.log.mbtree"));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_pending;
+    use crate::model::{Job, JobState, MediaKind};
+    use std::path::PathBuf;
+
+    fn job(id: u64, state: JobState) -> Job {
+        Job {
+            id,
+            input: PathBuf::from(format!("f{id}.mp4")),
+            name: format!("f{id}.mp4"),
+            kind: MediaKind::Video,
+            orig_bytes: Some(1000),
+            duration: Some(10.0),
+            output: None,
+            state,
+            progress: 0.0,
+            status: String::new(),
+        }
+    }
+
+    #[test]
+    fn solo_procesa_los_en_cola() {
+        // Idempotencia: aunque haya terminados/errores/en proceso en la lista,
+        // solo se seleccionan los Queued (y en su orden original).
+        let jobs = vec![
+            job(1, JobState::Queued),
+            job(2, JobState::Done),
+            job(3, JobState::Error),
+            job(4, JobState::Processing),
+            job(5, JobState::Queued),
+            job(6, JobState::Canceled),
+        ];
+        let ids: Vec<u64> = collect_pending(&jobs).iter().map(|p| p.id).collect();
+        assert_eq!(ids, vec![1, 5]);
+    }
+
+    #[test]
+    fn nada_pendiente_si_todo_esta_terminado() {
+        // Con todo en Done, dar clic en "Comprimir todo" no re-procesa nada.
+        let jobs = vec![job(1, JobState::Done), job(2, JobState::Done)];
+        assert!(collect_pending(&jobs).is_empty());
+    }
+
+    #[test]
+    fn lista_vacia_no_produce_trabajos() {
+        assert!(collect_pending(&[]).is_empty());
+    }
 }

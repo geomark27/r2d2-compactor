@@ -14,7 +14,7 @@ App de escritorio nativa (Rust + egui/eframe) para comprimir **videos e imágene
 | `model.rs` | Tipos de dominio: `Msg` (canal trabajo→UI, `Done` lleva la ruta de salida), `Job`, `JobState`, `MediaKind` (Video/Image + `from_path`). |
 | `util.rs` | Helpers puros sin dependencias del resto: `fmt_size`, `parse_out_time`, `open_containing_folder`. |
 | `ffmpeg.rs` | Localización e invocación de FFmpeg/FFprobe: `resolve_tool`, `which_in_path`, `null_device`, `probe_duration`, y el struct `Worker` con `run_pass` (con progreso, para video) y `run_quiet` (sin progreso, para imágenes). |
-| `queue.rs` | Cola en el hilo de trabajo: `run_queue` enruta por `MediaKind` a `compress_video` (two-pass H.264) o `compress_image` (búsqueda binaria de calidad JPEG). `QueuedJob`, constantes de bitrate, `cleanup_passlog`. |
+| `queue.rs` | Cola en el hilo de trabajo: `run_queue` enruta por `MediaKind` a `compress_video` (two-pass H.264) o `compress_image` (búsqueda binaria de calidad JPEG). `collect_pending` selecciona solo los `Queued` (idempotencia, con tests). `QueuedJob`, constantes de bitrate, `cleanup_passlog`. |
 | `update.rs` | Auto-actualización desde GitHub Releases: `check_latest`, `self_update`, `is_newer`, enum `UpdateStatus`. Tiene tests unitarios de comparación de versiones. |
 | `install.rs` | Integración con el SO: `ensure_start_menu_shortcut` crea el acceso directo del menú Inicio en Windows (vía PowerShell/WScript.Shell) para que la app sea buscable. No-op fuera de Windows. |
 | `app.rs` | GUI egui: struct `App` (estado) + `impl eframe::App` (renderizado y polling). Acciones masivas de la cola (quitar terminados/todos). |
@@ -36,7 +36,7 @@ Dependencias entre módulos (sin ciclos): `app` → {`ffmpeg`, `queue`, `update`
 cargo build --release      # binario en target/release/r2d2-compactor(.exe)
 cargo run                  # ejecutar en desarrollo
 cargo check                # verificación rápida sin compilar el binario
-cargo test                 # tests (comparación de versiones en update.rs)
+cargo test                 # tests (versiones en update.rs, idempotencia en queue.rs)
 make lint                  # cargo fmt --check + clippy -D warnings
 ```
 
