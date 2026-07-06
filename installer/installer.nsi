@@ -19,7 +19,10 @@ Unicode true
 
 Name "${APP_NAME} v${VERSION}"
 OutFile "${OUTFILE}"
-InstallDir "$LOCALAPPDATA\Programs\R2D2 Compactor"
+; Default en la raíz de C: (decisión del proyecto). Nota: Windows permite a los
+; usuarios crear carpetas ahí sin admin; si una política corporativa lo bloquea,
+; la validación DirLeave lo detecta y sugiere otra carpeta.
+InstallDir "C:\r2d2-compactor"
 ; Recuerda la carpeta si se reinstala/actualiza.
 InstallDirRegKey HKCU "Software\R2D2Compactor" "InstallDir"
 RequestExecutionLevel user
@@ -43,6 +46,9 @@ VIAddVersionKey /LANG=1034 "LegalCopyright" ""
 !define MUI_WELCOMEPAGE_TITLE "Bienvenido a ${APP_NAME}"
 !define MUI_WELCOMEPAGE_TEXT "Este asistente instalará ${APP_NAME} v${VERSION} en tu equipo.$\r$\n$\r$\nIncluye todo lo necesario (FFmpeg viene integrado); no hace falta descargar nada más.$\r$\n$\r$\nHaz clic en Siguiente para continuar."
 !insertmacro MUI_PAGE_WELCOME
+; Valida que la carpeta elegida sea escribible ANTES de instalar; si no lo es
+; (p. ej. Program Files, que requiere administrador), avisa claro y pide otra.
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirLeave
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
@@ -53,6 +59,23 @@ VIAddVersionKey /LANG=1034 "LegalCopyright" ""
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "Spanish"
+
+; Comprueba con un archivo de prueba que la carpeta elegida admite escritura.
+; Si no, no deja avanzar y explica el porqué (evita el error críptico
+; "error abriendo archivo para escritura" a mitad de la instalación).
+Function DirLeave
+  ClearErrors
+  CreateDirectory "$INSTDIR"
+  FileOpen $0 "$INSTDIR\.escritura-test" w
+  IfErrors 0 dir_ok
+    RMDir "$INSTDIR" ; limpia la carpeta solo si quedó vacía
+    MessageBox MB_OK|MB_ICONEXCLAMATION \
+      "No se puede escribir en:$\r$\n$INSTDIR$\r$\n$\r$\nEsa carpeta requiere permisos de administrador (como Program Files) o está protegida.$\r$\n$\r$\nElige otra carpeta — se recomienda la sugerida por defecto — para que la instalación y las actualizaciones automáticas funcionen."
+    Abort
+  dir_ok:
+  FileClose $0
+  Delete "$INSTDIR\.escritura-test"
+FunctionEnd
 
 ; ---- Instalación ----
 Section "Instalar"

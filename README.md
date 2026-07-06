@@ -7,7 +7,7 @@ Cero JavaScript, cero webview, cero runtime que instalar. Es un binario nativo (
 ## Para usuarios (tus compañeros)
 
 1. Descarga el instalador **`r2d2-compactor-setup.exe`** desde la [pestaña Releases del repo](https://github.com/geomark27/r2d2-compactor/releases).
-2. Doble clic y sigue el asistente (Siguiente → Instalar → Finalizar). Trae todo incluido (FFmpeg); instala **por usuario** (sin permisos de administrador), crea el acceso del menú Inicio y se desinstala desde "Agregar o quitar programas".
+2. Doble clic y sigue el asistente (Siguiente → Instalar → Finalizar). Trae todo incluido (FFmpeg); instala **sin permisos de administrador** (por defecto en `C:\r2d2-compactor`; valida que la carpeta elegida sea escribible), crea el acceso del menú Inicio y se desinstala desde "Agregar o quitar programas".
 
 Alternativa **portable**: el `r2d2-compactor-windows-amd64.zip` — descomprimir completo y abrir `r2d2-compactor.exe` (manteniendo el `.exe` y la carpeta `ffmpeg/` juntos).
 
