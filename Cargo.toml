@@ -1,6 +1,6 @@
 [package]
 name = "r2d2-compactor"
-version = "1.0.7"
+version = "1.0.8"
 edition = "2021"
 description = "Compresor de videos de evidencia (two-pass H.264 via FFmpeg) con auto-actualización"
 
