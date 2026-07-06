@@ -96,7 +96,7 @@ La app se auto-actualiza desde **GitHub Releases** (repo `geomark27/r2d2-compact
 - **Al pulsar el botón**, otro hilo descarga el asset + `checksums.txt`, verifica el SHA-256 y usa el crate `self-replace` para intercambiar el binario en uso (maneja el caso Windows del `.exe` bloqueado). Requiere reiniciar la app. **El updater descarga el `.exe` suelto, no el zip** — el FFmpeg ya está instalado desde la descarga inicial y no se toca.
 - **El nombre del asset** (`asset_name()`) debe coincidir con lo que publica el `Makefile`: `r2d2-compactor-windows-amd64.exe` / `r2d2-compactor-linux-amd64`.
 
-**Distribución con FFmpeg incluido**: el release de Windows es un **`.zip`** (`r2d2-compactor-windows-amd64.zip`) que contiene la app + una carpeta `ffmpeg/` con `ffmpeg.exe`/`ffprobe.exe`. Los binarios de FFmpeg viven en `vendor/ffmpeg-win/` (gitignored, ~195 MB); se bajan una vez con `make vendor-ffmpeg`.
+**Distribución con FFmpeg incluido**: el asset principal es un **instalador NSIS** (`r2d2-compactor-setup.exe`, script en `installer/installer.nsi`, requiere `apt install nsis`) que instala por usuario en `%LOCALAPPDATA%\Programs\R2D2 Compactor` — deliberadamente NO en Program Files, para no pedir admin y para que la auto-actualización (que reemplaza el `.exe` in situ) siga funcionando. Crea acceso del menú Inicio, desinstalador y entrada en "Agregar o quitar programas" (HKCU). También se publica un **`.zip`** portable (`r2d2-compactor-windows-amd64.zip`) con la app + carpeta `ffmpeg/`. Los binarios de FFmpeg viven en `vendor/ffmpeg-win/` (gitignored, ~195 MB); se bajan una vez con `make vendor-ffmpeg`. `make dist-pkg` prepara `dist/pkg/` y de ahí salen `dist-windows` (zip) y `dist-installer` (setup).
 
 **Publicar una versión** (necesita `gh` autenticado, toolchain de cross-compile y `make vendor-ffmpeg` hecho):
 
@@ -106,7 +106,7 @@ make release-minor    # bump minor
 make release-major    # bump major
 ```
 
-`_release` bumpea `Cargo.toml`, compila Linux, arma el zip de Windows (`dist-windows`), copia el `.exe` suelto, genera `checksums.txt` (zip + exe + linux), crea el tag `vX.Y.Z`, pushea y publica. Si cambia el nombre del repo o del binario, actualizar `REPO` y `asset_name()` en `update.rs`, y `BINARY`/`WIN_TARGET`/`VENDOR` en el `Makefile`.
+`_release` bumpea `Cargo.toml`, compila Linux, arma el zip (`dist-windows`) y el instalador (`dist-installer`), copia el `.exe` suelto, genera `checksums.txt` (linux + exe + zip + setup), crea el tag `vX.Y.Z`, pushea y publica. Si cambia el nombre del repo o del binario, actualizar `REPO` y `asset_name()` en `update.rs`, `BINARY`/`WIN_TARGET`/`VENDOR` en el `Makefile`, y los defines/nombres en `installer/installer.nsi`.
 
 ## Entorno de desarrollo vs. target de distribución (importante)
 

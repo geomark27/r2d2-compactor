@@ -6,11 +6,10 @@ Cero JavaScript, cero webview, cero runtime que instalar. Es un binario nativo (
 
 ## Para usuarios (tus compañeros)
 
-1. Descarga **`r2d2-compactor-windows-amd64.zip`** desde la [pestaña Releases del repo](https://github.com/geomark27/r2d2-compactor/releases).
-2. **Descomprímelo completo** en una carpeta. Ya trae todo lo necesario (la app + FFmpeg); no hay que instalar ni descargar nada más.
-3. Abre **`r2d2-compactor.exe`** con doble clic.
+1. Descarga el instalador **`r2d2-compactor-setup.exe`** desde la [pestaña Releases del repo](https://github.com/geomark27/r2d2-compactor/releases).
+2. Doble clic y sigue el asistente (Siguiente → Instalar → Finalizar). Trae todo incluido (FFmpeg); instala **por usuario** (sin permisos de administrador), crea el acceso del menú Inicio y se desinstala desde "Agregar o quitar programas".
 
-> Importante: mantén el `.exe` y la carpeta `ffmpeg/` **juntos**, tal como vienen en el zip. Si los separas, la app no encontrará el motor de compresión.
+Alternativa **portable**: el `r2d2-compactor-windows-amd64.zip` — descomprimir completo y abrir `r2d2-compactor.exe` (manteniendo el `.exe` y la carpeta `ffmpeg/` juntos).
 
 📖 **Guía de usuario completa (paso a paso, con solución de problemas):** [`docs/GUIA-DE-USUARIO.md`](docs/GUIA-DE-USUARIO.md)
 
@@ -66,7 +65,9 @@ make release-minor    # bump minor
 make release-major    # bump major
 ```
 
-Cada release publica tres assets: el **`.zip` de Windows** (app + FFmpeg, lo que descargan los usuarios), el **`.exe` suelto** (lo usa la auto-actualización) y el binario Linux, más `checksums.txt`. Desde que se publica, las apps instaladas detectan la nueva versión al abrir.
+Cada release publica cuatro assets: el **instalador `setup.exe`** (asistente NSIS con FFmpeg incluido — lo que descargan los usuarios), el **`.zip` de Windows** (versión portable), el **`.exe` suelto** (lo usa la auto-actualización) y el binario Linux, más `checksums.txt`. Desde que se publica, las apps instaladas detectan la nueva versión al abrir.
+
+Requisito extra para el instalador: `sudo apt install nsis` (el script está en `installer/installer.nsi`; también `make dist-installer` lo genera suelto).
 
 ## Notas técnicas
 

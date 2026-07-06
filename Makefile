@@ -31,6 +31,7 @@ help:
 	@echo "    build-windows   Cross-compila el .exe de Windows ($(WIN_TARGET))"
 	@echo "    vendor-ffmpeg   Descarga FFmpeg de Windows a vendor/ (una vez)"
 	@echo "    dist-windows    Arma el .zip de Windows (app + FFmpeg incluido)"
+	@echo "    dist-installer  Arma el instalador setup.exe (asistente NSIS)"
 	@echo "    run             Ejecuta la app en modo desarrollo"
 	@echo "    clean           Elimina artefactos de compilación"
 	@echo ""
@@ -76,18 +77,32 @@ vendor-ffmpeg:
 	@rm -f /tmp/ffmpeg-win.zip
 	@echo "$(GREEN)✓ FFmpeg en $(VENDOR)$(NC)"
 
-# Arma el .zip de distribución de Windows: la app + la carpeta ffmpeg lista para usar.
-.PHONY: dist-windows
-dist-windows: build-windows
+# Prepara en dist/pkg el contenido de la distribución de Windows (app + ffmpeg).
+.PHONY: dist-pkg
+dist-pkg: build-windows
 	@if [ ! -f $(VENDOR)/ffmpeg.exe ]; then \
 		echo "$(RED)Falta FFmpeg. Corre primero: make vendor-ffmpeg$(NC)"; exit 1; fi
 	@rm -rf dist/pkg && mkdir -p dist/pkg/ffmpeg
 	@cp target/$(WIN_TARGET)/release/$(BINARY).exe dist/pkg/
 	@cp $(VENDOR)/ffmpeg.exe $(VENDOR)/ffprobe.exe dist/pkg/ffmpeg/
 	@cp $(VENDOR)/LICENSE dist/pkg/ffmpeg/FFMPEG-LICENSE.txt 2>/dev/null || true
+
+# Arma el .zip de distribución de Windows (versión "portable").
+.PHONY: dist-windows
+dist-windows: dist-pkg
 	@( cd dist/pkg && zip -qr ../$(BINARY)-windows-amd64.zip . )
-	@rm -rf dist/pkg
 	@echo "$(GREEN)✓ dist/$(BINARY)-windows-amd64.zip (app + FFmpeg incluido)$(NC)"
+
+# Arma el instalador de Windows (asistente NSIS: elegir carpeta, siguiente…).
+.PHONY: dist-installer
+dist-installer: dist-pkg
+	@command -v makensis >/dev/null || { \
+		echo "$(RED)Falta NSIS. Instala con: sudo apt install nsis$(NC)"; exit 1; }
+	@ICO=$$(ls -t target/$(WIN_TARGET)/release/build/$(BINARY)-*/out/icon.ico 2>/dev/null | head -1); \
+	if [ -n "$$ICO" ]; then ICODEF="-DAPP_ICO=$$(readlink -f $$ICO)"; else ICODEF=""; fi; \
+	makensis -V2 -DVERSION=$(VERSION) -DPKG_DIR=$$(readlink -f dist/pkg) \
+		-DOUTFILE=$$(readlink -f dist)/$(BINARY)-setup.exe $$ICODEF installer/installer.nsi
+	@echo "$(GREEN)✓ dist/$(BINARY)-setup.exe (instalador con FFmpeg incluido)$(NC)"
 
 .PHONY: run
 run:
@@ -140,13 +155,14 @@ _release: lint
 	NEW="$$MAJOR.$$MINOR.$$PATCH"; TAG="v$$NEW"; \
 	echo "$(YELLOW)Release: v$$CURRENT → $$TAG$(NC)"; \
 	sed -i "0,/^version = \".*\"/s//version = \"$$NEW\"/" Cargo.toml; \
-	echo "$(YELLOW)[1/5]$(NC) Compilando binarios + zip de Windows con FFmpeg..."; \
+	echo "$(YELLOW)[1/5]$(NC) Compilando binarios + zip + instalador de Windows..."; \
 	$(CARGO) build --release; \
 	$(MAKE) dist-windows; \
+	$(MAKE) dist-installer; \
 	cp target/release/$(BINARY)                 dist/$(BINARY)-linux-amd64; \
 	cp target/$(WIN_TARGET)/release/$(BINARY).exe dist/$(BINARY)-windows-amd64.exe; \
 	echo "$(YELLOW)[2/5]$(NC) Generando checksums.txt..."; \
-	( cd dist && sha256sum $(BINARY)-linux-amd64 $(BINARY)-windows-amd64.exe $(BINARY)-windows-amd64.zip > checksums.txt ); \
+	( cd dist && sha256sum $(BINARY)-linux-amd64 $(BINARY)-windows-amd64.exe $(BINARY)-windows-amd64.zip $(BINARY)-setup.exe > checksums.txt ); \
 	echo "$(YELLOW)[3/5]$(NC) Commit + tag $$TAG..."; \
 	git add Cargo.toml Cargo.lock; \
 	git commit -m "release: $$TAG"; \
@@ -155,12 +171,13 @@ _release: lint
 	git push origin $(BRANCH) --tags; \
 	echo "$(YELLOW)[5/5]$(NC) Publicando en GitHub Releases..."; \
 	gh release create $$TAG \
+		dist/$(BINARY)-setup.exe \
 		dist/$(BINARY)-windows-amd64.zip \
 		dist/$(BINARY)-windows-amd64.exe \
 		dist/$(BINARY)-linux-amd64 \
 		dist/checksums.txt \
 		--title "$$TAG" \
-		--notes "Release $$TAG. Para Windows descarga el .zip (incluye FFmpeg). El .exe suelto es solo para la auto-actualización."; \
+		--notes "Release $$TAG. Para Windows descarga el instalador ($(BINARY)-setup.exe); el .zip es la versión portable. El .exe suelto es solo para la auto-actualización."; \
 	echo "$(GREEN)✓ Release $$TAG publicado$(NC)"
 
 .PHONY: release

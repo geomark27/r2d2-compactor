@@ -8,24 +8,23 @@ Herramienta para **reducir el peso de videos e imágenes de evidencia** antes de
 
 1. Entra a la página de descargas del proyecto:
    **https://github.com/geomark27/r2d2-compactor/releases**
-2. En la versión más reciente, descarga el archivo **`r2d2-compactor-windows-amd64.zip`**.
-3. **Descomprime el `.zip` completo** en la carpeta donde quieras tenerlo (por ejemplo, en tu Escritorio o en Documentos). Al descomprimir verás algo así:
-
-   ```
-   📁 r2d2-compactor
-   ├── r2d2-compactor.exe      ← el programa
-   └── 📁 ffmpeg               ← el motor de compresión (ya incluido)
-   ```
-
-4. Abre **`r2d2-compactor.exe`** con doble clic.
-
-> ⚠️ **Importante:** no separes el `r2d2-compactor.exe` de la carpeta `ffmpeg`. Deben quedar siempre juntos, tal como vienen en el `.zip`. Si mueves solo el `.exe` a otro lado, el programa no podrá comprimir.
-
-### Abrirlo después desde el buscador de Windows
-
-La **primera vez** que abres el programa, este se registra solo en el menú Inicio. A partir de ahí ya **no necesitas ir a buscar el `.exe`**: solo pulsa la tecla **Windows** (o clic en el buscador) y escribe **`r2d2`** — aparecerá "R2D2 Compactor" para abrirlo directo.
+2. En la versión más reciente, descarga el **instalador**: **`r2d2-compactor-setup.exe`**.
+3. Ábrelo con doble clic y sigue el asistente: **Siguiente → elige la carpeta (o deja la sugerida) → Instalar → Finalizar**. El instalador ya trae todo lo necesario (FFmpeg incluido); no hay que descargar nada más.
+4. ¡Listo! Al finalizar puedes dejar marcada la casilla "Ejecutar R2D2 Compactor" para abrirlo de una vez.
 
 > La primera vez, Windows puede mostrar un aviso de seguridad ("Windows protegió tu PC"). Es normal en programas nuevos: haz clic en **"Más información" → "Ejecutar de todas formas"**.
+
+### Abrirlo desde el buscador de Windows
+
+La instalación crea el acceso en el menú Inicio: pulsa la tecla **Windows** y escribe **`r2d2`** — aparecerá "R2D2 Compactor" para abrirlo directo.
+
+### Desinstalar
+
+Como cualquier programa: **Configuración → Aplicaciones → R2D2 Compactor → Desinstalar**.
+
+### Alternativa portable (sin instalador)
+
+Si prefieres no instalar nada, en la misma página hay un **`r2d2-compactor-windows-amd64.zip`**: descomprímelo completo en cualquier carpeta y abre `r2d2-compactor.exe`. En ese caso, **no separes** el `.exe` de la carpeta `ffmpeg` que viene junto a él.
 
 ---
 
@@ -101,11 +100,9 @@ No necesitas volver a descargar el `.zip` ni tocar la carpeta `ffmpeg`.
 ## 6. Problemas frecuentes
 
 **Aparece un mensaje rojo: "No se encontró FFmpeg".**
-Significa que el programa no encuentra la carpeta `ffmpeg`. Casi siempre es porque:
-- No se descomprimió el `.zip` completo, o
-- Se movió el `.exe` a otra ubicación sin la carpeta `ffmpeg`.
-
-Solución: vuelve a descomprimir el `.zip` completo y abre el `.exe` desde ahí, con la carpeta `ffmpeg` al lado.
+Significa que el programa no encuentra la carpeta `ffmpeg` que debe estar junto a él.
+- Si lo instalaste con el **instalador**: vuelve a ejecutar `r2d2-compactor-setup.exe` (reinstala encima y repone lo que falte).
+- Si usas la versión **portable** (zip): vuelve a descomprimir el `.zip` completo y abre el `.exe` desde ahí, con la carpeta `ffmpeg` al lado; no muevas el `.exe` solo.
 
 **Un video muy largo no baja al tamaño que puse.**
 Si el video es muy largo para un objetivo muy pequeño, el programa te avisará que podría superarlo (hay un límite para que no se vea demasiado mal). Prueba con un tamaño objetivo un poco mayor o una resolución menor (720p).
