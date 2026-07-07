@@ -86,3 +86,9 @@ Requisito extra para el instalador: `sudo apt install nsis` (el script está en 
 ## Aprende cómo funciona
 
 📚 Documento explicativo de la lógica de compresión y optimización (bitrate, two-pass, códecs H.264, CRF, JPEG…), conectado con el código: [`docs/COMPRESION-EXPLICADA.md`](docs/COMPRESION-EXPLICADA.md)
+
+## Licencia
+
+Este proyecto se distribuye bajo la **GNU General Public License v3.0 o posterior** (ver [`LICENSE`](LICENSE)). Eres libre de usarlo, estudiarlo, modificarlo y redistribuirlo; toda redistribución (original o modificada) debe conservar esta misma licencia y dar acceso al código fuente.
+
+Los binarios de **FFmpeg** incluidos en las descargas son un proyecto independiente, también bajo GPL v3 (su licencia y las referencias a su código fuente acompañan a los binarios en la carpeta `ffmpeg/` de cada descarga). Esta app los invoca como programas externos, sin modificarlos.

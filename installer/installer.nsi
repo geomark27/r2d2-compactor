@@ -81,6 +81,7 @@ FunctionEnd
 Section "Instalar"
   SetOutPath "$INSTDIR"
   File "${PKG_DIR}/${APP_EXE}"
+  File "${PKG_DIR}/LICENSE.txt"
   SetOutPath "$INSTDIR\ffmpeg"
   File /r "${PKG_DIR}/ffmpeg/"
 
@@ -105,6 +106,7 @@ SectionEnd
 ; ---- Desinstalación ----
 Section "Uninstall"
   Delete "$INSTDIR\${APP_EXE}"
+  Delete "$INSTDIR\LICENSE.txt"
   RMDir /r "$INSTDIR\ffmpeg"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"

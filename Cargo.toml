@@ -3,6 +3,7 @@ name = "r2d2-compactor"
 version = "1.0.9"
 edition = "2021"
 description = "Compresor de videos de evidencia (two-pass H.264 via FFmpeg) con auto-actualización"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 eframe = { version = "0.24", default-features = false, features = ["glow", "default_fonts", "persistence"] }

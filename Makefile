@@ -84,8 +84,10 @@ dist-pkg: build-windows
 		echo "$(RED)Falta FFmpeg. Corre primero: make vendor-ffmpeg$(NC)"; exit 1; fi
 	@rm -rf dist/pkg && mkdir -p dist/pkg/ffmpeg
 	@cp target/$(WIN_TARGET)/release/$(BINARY).exe dist/pkg/
+	@cp LICENSE dist/pkg/LICENSE.txt
 	@cp $(VENDOR)/ffmpeg.exe $(VENDOR)/ffprobe.exe dist/pkg/ffmpeg/
 	@cp $(VENDOR)/LICENSE dist/pkg/ffmpeg/FFMPEG-LICENSE.txt 2>/dev/null || true
+	@cp installer/FFMPEG-FUENTES.txt dist/pkg/ffmpeg/
 
 # Arma el .zip de distribución de Windows (versión "portable").
 .PHONY: dist-windows

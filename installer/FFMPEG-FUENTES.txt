@@ -1,0 +1,22 @@
+Acerca de FFmpeg (ffmpeg.exe / ffprobe.exe)
+============================================
+
+Los binarios de esta carpeta son FFmpeg, un proyecto independiente de
+codificación multimedia, distribuido bajo la licencia GNU GPL versión 3
+(ver FFMPEG-LICENSE.txt en esta misma carpeta).
+
+R2D2 Compactor los invoca como programas externos; no son parte del
+código de R2D2 Compactor ni están modificados.
+
+Código fuente
+-------------
+Conforme a la GPL, el código fuente de estos binarios está disponible en:
+
+  - Builds utilizados (gyan.dev, incluye enlaces a las fuentes exactas):
+    https://www.gyan.dev/ffmpeg/builds/
+  - Proyecto FFmpeg (código fuente oficial):
+    https://ffmpeg.org/download.html
+  - Repositorio git:
+    https://git.ffmpeg.org/ffmpeg.git
+
+Sitio del proyecto: https://ffmpeg.org
